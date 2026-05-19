@@ -1952,7 +1952,7 @@ function buildEditDiscs(v){
     const p=v.progress[d]||0,cr=col(p);
     const en=d,ar=DISC_AR[d]||'';
     const row=document.createElement('div');row.className='der';
-    const hint = getLegendHint(disc, p);
+    const hint = getLegendHint(d, p);
     row.innerHTML=`
       <div style="flex:1;min-width:0">
         <div class="dl"><span class="en">${lang==='ar'?ar:en}</span><span class="ar">${lang==='ar'?en:ar}</span></div>
