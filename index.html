@@ -577,84 +577,141 @@ function showTab(name){
 function buildDashboard(){
   const vArr = Object.values(live);
   const totalAll = vArr.length;
-  const doneAll  = vArr.filter(v=>(v.progress['Foundation RC']||0)>=100).length;
-  const activeAll= vArr.filter(v=>v.overall>0).length;
-  const pctAll   = totalAll ? Math.round(doneAll/totalAll*100) : 0;
 
-  // Group by phase -> neighborhood
-  const phases = {};
-  for(const v of vArr){
-    const ph=v.phase||'Unknown', nb=v.nb||'Unknown';
-    if(!phases[ph]) phases[ph]={};
-    if(!phases[ph][nb]) phases[ph][nb]={total:0,done:0};
-    phases[ph][nb].total++;
-    if((v.progress['Foundation RC']||0)>=100) phases[ph][nb].done++;
+  // Group by phase -> neighborhood for each discipline
+  function getKPI(disc){
+    const phases={};
+    for(const v of vArr){
+      const ph=v.phase||'?', nb=v.nb||'?';
+      if(!phases[ph]) phases[ph]={};
+      if(!phases[ph][nb]) phases[ph][nb]={total:0,started:0,done:0};
+      phases[ph][nb].total++;
+      const pct=v.progress[disc]||0;
+      if(pct>0) phases[ph][nb].started++;
+      if(pct>=100) phases[ph][nb].done++;
+    }
+    return phases;
   }
 
-  const phColors = {'PH1':'#1a5276','PH2':'#117a65','PH3':'#7d6608'};
-  const nbColors = ['#3498db','#27ae60','#e67e22','#9b59b6','#e91e8c','#f1c40f','#85c1e9'];
+  // Overall site KPI header
+  const doneAll = vArr.filter(v=>(v.progress['Foundation RC']||0)>=100).length;
+  const pctAll  = totalAll ? Math.round(doneAll/totalAll*100) : 0;
 
-  let html = `
+  const phColors={'PH1':'#1a5276','PH2':'#117a65','PH3':'#7d6608'};
+  const nbColors=['#3498db','#27ae60','#e67e22','#9b59b6','#e91e8c','#f1c40f','#85c1e9','#e74c3c'];
+  const discColors={
+    'Boundary Wall':'#808080','Foundation PC':'#f1c40f','Foundation RC':'#e67e22',
+    'Precast Fab':'#3498db','Precast GF':'#5dade2','Precast FF':'#2e86c1','Precast RF':'#1a5276',
+    'Masonry':'#9b59b6','Roofing':'#7d3c98','Mech Ceiling':'#e91e8c','Mech Walls':'#c0392b',
+    'Elec Ceiling':'#f39c12','Elec Walls':'#d68910','Plaster':'#a8e063','HVAC':'#1abc9c','Wires':'#27ae60'
+  };
+  const discAr={
+    'Boundary Wall':'جدار حدودي','Foundation PC':'أساس بتوني عادي','Foundation RC':'أساس مسلح',
+    'Precast Fab':'تصنيع جاهز','Precast GF':'تركيب GF','Precast FF':'تركيب FF',
+    'Precast RF':'تركيب RF','Masonry':'بناء','Roofing':'سقف','Mech Ceiling':'ميكانيكا سقف',
+    'Mech Walls':'ميكانيكا جدار','Elec Ceiling':'كهرباء سقف','Elec Walls':'كهرباء جدار',
+    'Plaster':'لياسة','HVAC':'تكييف','Wires':'أسلاك'
+  };
+
+  let out = `
     <div class="kpi-header">
-      <div class="big">${lang==='ar'?'مؤشرات الأداء الرئيسية — إنجاز الهيكل الإنشائي':'KPI — Foundation RC Completed'}</div>
+      <div class="big">${lang==='ar'?'مؤشرات الأداء — جميع التخصصات':'KPI Dashboard — All Disciplines'}</div>
       <div class="kpi-header-stats">
         <div class="kpi-stat"><div class="num">${totalAll}</div><div class="lbl">${lang==='ar'?'إجمالي الفلل':'Total Villas'}</div></div>
-        <div class="kpi-stat"><div class="num" style="color:#27ae60">${doneAll}</div><div class="lbl">${lang==='ar'?'مكتملة':'Completed'}</div></div>
+        <div class="kpi-stat"><div class="num" style="color:#27ae60">${doneAll}</div><div class="lbl">${lang==='ar'?'هيكل مكتمل':'RC Done'}</div></div>
         <div class="kpi-stat"><div class="num" style="color:#f39c12">${totalAll-doneAll}</div><div class="lbl">${lang==='ar'?'متبقية':'Remaining'}</div></div>
       </div>
-      <div class="phase-bar" style="height:10px;background:#253545;border-radius:5px;overflow:hidden;margin:0 0 6px">
-        <div class="phase-bar-fill" style="width:${pctAll}%;background:#1a5276;height:100%"></div>
+      <div class="phase-bar" style="height:8px;background:#253545;border-radius:4px;overflow:hidden;margin:0 0 4px">
+        <div style="width:${pctAll}%;background:#1a5276;height:100%;border-radius:4px;transition:width .6s"></div>
       </div>
-      <div style="font-size:12px;color:#85c1e9;font-weight:bold">${pctAll}% ${lang==='ar'?'منجز':'overall'}</div>
+      <div style="font-size:11px;color:#85c1e9;font-weight:bold">${pctAll}% ${lang==='ar'?'إجمالي RC':'overall RC'}</div>
     </div>
-    <div class="kpi-note">${lang==='ar'?'اضغط على المرحلة لعرض الأحياء':'Tap phase to expand neighborhoods'}</div>`;
+    <div class="kpi-note">${lang==='ar'?'اضغط على التخصص لعرض المراحل والأحياء':'Tap discipline to expand phases & neighborhoods'}</div>`;
 
-  const phOrder = Object.keys(phases).sort();
-  phOrder.forEach((ph,pi)=>{
-    const nbs = phases[ph];
-    const phTotal = Object.values(nbs).reduce((a,b)=>a+b.total,0);
-    const phDone  = Object.values(nbs).reduce((a,b)=>a+b.done,0);
-    const phPct   = phTotal ? Math.round(phDone/phTotal*100) : 0;
-    const phColor = phColors[ph] || '#1a5276';
-    const phLabel = lang==='ar' ? ph.replace('PH','المرحلة ') : ph.replace('PH','Phase ');
+  // One card per discipline
+  for(const disc of DISCS){
+    const dColor = discColors[disc]||'#85c1e9';
+    const dLabel = lang==='ar'?(discAr[disc]||disc):disc;
+    const dLabelAlt = lang==='ar'?disc:(discAr[disc]||'');
+    const phases = getKPI(disc);
 
-    html += `
+    // Phase totals
+    const allT = Object.values(phases).flatMap(nbs=>Object.values(nbs));
+    const discTotal   = allT.reduce((a,b)=>a+b.total,0);
+    const discStarted = allT.reduce((a,b)=>a+b.started,0);
+    const discDone    = allT.reduce((a,b)=>a+b.done,0);
+    const discPct     = discTotal ? Math.round(discDone/discTotal*100) : 0;
+    const discPctS    = discTotal ? Math.round(discStarted/discTotal*100) : 0;
+
+    const uid = disc.replace(/ /g,'_');
+
+    out += `
     <div class="phase-card">
-      <div class="phase-header" onclick="toggleNB('nb-${ph}','chv-${ph}')">
+      <div class="phase-header" onclick="toggleNB('nb-${uid}','chv-${uid}')">
         <div>
-          <div class="phase-title">${phLabel} <span>${phDone}/${phTotal} ${lang==='ar'?'فيلا':'villas'}</span></div>
+          <div class="phase-title" style="color:${dColor}">${dLabel}
+            <span style="color:#7f8c8d;font-size:10px">${dLabelAlt}</span>
+          </div>
+          <div style="font-size:10px;color:#7f8c8d;margin-top:2px">${discDone} done · ${discStarted-discDone} in progress · ${discTotal-discStarted} not started</div>
         </div>
         <div class="phase-right">
-          <div class="phase-pct" style="color:${phColor}">${phPct}%</div>
-          <div class="chevron" id="chv-${ph}">▼</div>
+          <div class="phase-pct" style="color:${dColor}">${discPct}%</div>
+          <div class="chevron" id="chv-${uid}">▼</div>
         </div>
       </div>
       <div class="phase-bar-wrap">
-        <div class="phase-bar"><div class="phase-bar-fill" style="width:${phPct}%;background:${phColor}"></div></div>
+        <div class="phase-bar" style="position:relative;height:7px">
+          <div style="position:absolute;left:0;top:0;height:100%;width:${discPctS}%;background:${dColor};opacity:0.35;border-radius:4px"></div>
+          <div style="position:absolute;left:0;top:0;height:100%;width:${discPct}%;background:${dColor};border-radius:4px;transition:width .6s"></div>
+        </div>
       </div>
-      <div class="phase-nbs" id="nb-${ph}">`;
+      <div class="phase-nbs" id="nb-${uid}">`;
 
-    Object.keys(nbs).sort().forEach((nb,ni)=>{
-      const d=nbs[nb];
-      const pct=d.total?Math.round(d.done/d.total*100):0;
-      const c=nbColors[ni%nbColors.length];
-      html+=`
-        <div class="nb-row">
-          <div class="nb-label">${nb}</div>
-          <div class="nb-bar-wrap"><div class="nb-bar-fill" style="width:${pct}%;background:${c}"></div></div>
-          <div class="nb-nums">${d.done}/${d.total}</div>
-          <div class="nb-pct" style="color:${c}">${pct}%</div>
-        </div>`;
-    });
+    for(const ph of Object.keys(phases).sort()){
+      const nbs = phases[ph];
+      const phT = Object.values(nbs).reduce((a,b)=>a+b.total,0);
+      const phD = Object.values(nbs).reduce((a,b)=>a+b.done,0);
+      const phS = Object.values(nbs).reduce((a,b)=>a+b.started,0);
+      const phP = phT ? Math.round(phD/phT*100) : 0;
+      const phLabel = lang==='ar'?ph.replace('PH','مرحلة '):ph.replace('PH','Phase ');
+      const phColor = phColors[ph]||'#1a5276';
 
-    html += `</div></div>`;
-  });
+      out += `
+        <div style="margin-bottom:8px">
+          <div style="font-size:11px;font-weight:bold;color:${phColor};margin-bottom:6px;padding:4px 0;border-bottom:1px solid #253545">
+            ${phLabel} — ${phD}/${phT} <span style="color:#7f8c8d;font-weight:normal">(${phS-phD} in progress)</span>
+          </div>`;
 
-  html += `
-    <button class="rb" onclick="showReport()" id="rpt-btn" style="margin-top:4px">📋 ${lang==='ar'?'إنشاء تقرير':'Generate Report'}</button>
-    <button class="rb2" onclick="refreshSheet()">🔄 ${lang==='ar'?'تحديث من الجدول':'Refresh from Sheet'}</button>`;
+      Object.keys(nbs).sort().forEach((nb,ni)=>{
+        const d=nbs[nb];
+        const pct=d.total?Math.round(d.done/d.total*100):0;
+        const pctS=d.total?Math.round(d.started/d.total*100):0;
+        const c=nbColors[ni%nbColors.length];
+        out+=`
+          <div class="nb-row">
+            <div class="nb-label">${nb}</div>
+            <div class="nb-bar-wrap" style="position:relative">
+              <div style="position:absolute;left:0;top:0;height:100%;width:${pctS}%;background:${c};opacity:0.3;border-radius:3px"></div>
+              <div class="nb-bar-fill" style="width:${pct}%;background:${c}"></div>
+            </div>
+            <div class="nb-nums">${d.done}/${d.total}</div>
+            <div class="nb-pct" style="color:${c}">${pct}%</div>
+          </div>`;
+      });
 
-  document.getElementById('dash-content').innerHTML = html;
+      out += `</div>`;
+    }
+
+    out += `</div></div>`;
+  }
+
+  out += `
+    <div style="height:8px"></div>
+    <button class="rb" onclick="showReport()" style="margin-top:4px">📋 ${lang==='ar'?'إنشاء تقرير':'Generate Report'}</button>
+    <button class="rb2" onclick="refreshSheet()">🔄 ${lang==='ar'?'تحديث من الجدول':'Refresh from Sheet'}</button>
+    <div style="height:20px"></div>`;
+
+  document.getElementById('dash-content').innerHTML = out;
 }
 
 function toggleNB(id, chvId){
@@ -758,35 +815,19 @@ function showReport(){
   const ds=new Date().toLocaleDateString(lang==='ar'?'ar-SA':'en-GB');
   const vArr=Object.values(live);
   const totalAll=vArr.length;
-  const doneAll=vArr.filter(v=>(v.progress['Foundation RC']||0)>=100).length;
-  const pctAll=totalAll?Math.round(doneAll/totalAll*100):0;
-
-  const phases={};
-  for(const v of vArr){
-    const ph=v.phase||'?',nb=v.nb||'?';
-    if(!phases[ph])phases[ph]={};
-    if(!phases[ph][nb])phases[ph][nb]={total:0,done:0};
-    phases[ph][nb].total++;
-    if((v.progress['Foundation RC']||0)>=100)phases[ph][nb].done++;
-  }
-
   let lines=[];
-  for(const ph of Object.keys(phases).sort()){
-    const nbs=phases[ph];
-    const phT=Object.values(nbs).reduce((a,b)=>a+b.total,0);
-    const phD=Object.values(nbs).reduce((a,b)=>a+b.done,0);
-    const phP=phT?Math.round(phD/phT*100):0;
-    lines.push(`\n${ph.replace('PH','Phase ')}: ${phD}/${phT} (${phP}%)`);
-    for(const nb of Object.keys(nbs).sort()){
-      const d=nbs[nb];
-      const p=d.total?Math.round(d.done/d.total*100):0;
-      lines.push(`  • ${nb}: ${d.done}/${d.total} (${p}%)`);
-    }
+
+  for(const disc of DISCS){
+    const done=vArr.filter(v=>(v.progress[disc]||0)>=100).length;
+    const started=vArr.filter(v=>(v.progress[disc]||0)>0).length;
+    const pct=totalAll?Math.round(done/totalAll*100):0;
+    const dn=lang==='ar'?(DISC_AR[disc]||disc):disc;
+    lines.push(`  • ${dn}: ${done}/${totalAll} (${pct}%) — ${started-done} in progress`);
   }
 
   document.getElementById('rtxt').textContent=lang==='ar'
-    ?`📋 تقرير مؤشرات الأداء\n📅 ${ds}\n\nالمعيار: اكتمال أساس RC\n\n✅ الإجمالي: ${doneAll}/${totalAll} (${pctAll}%)\n${lines.join('\n')}`
-    :`📋 KPI Report — Foundation RC Completed\n📅 Date: ${ds}\n\n✅ Overall: ${doneAll}/${totalAll} (${pctAll}%)\n${lines.join('\n')}`;
+    ?`📋 تقرير مؤشرات الأداء — جميع التخصصات\n📅 ${ds}\n\nإجمالي الفلل: ${totalAll}\n\n${lines.join('\n')}`
+    :`📋 KPI Report — All Disciplines\n📅 Date: ${ds}\n\nTotal Villas: ${totalAll}\n\n${lines.join('\n')}`;
   document.getElementById('rmod').style.display='block';
 }
 function copyReport(){navigator.clipboard.writeText(document.getElementById('rtxt').textContent);}
