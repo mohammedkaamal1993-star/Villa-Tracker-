@@ -44,6 +44,7 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
 .zbtn{background:rgba(26,82,118,0.92);color:#fff;border:none;width:32px;height:32px;border-radius:7px;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
 #leg{position:absolute;bottom:12px;left:12px;background:rgba(15,25,35,0.93);padding:7px 9px;border-radius:7px;font-size:10px;z-index:10}
 .lr{display:flex;align-items:center;gap:5px;margin-bottom:3px}
+.lr span{color:#85c1e9}
 .ls{width:11px;height:11px;border-radius:2px;flex-shrink:0}
 #tip{position:absolute;background:rgba(10,20,30,0.97);border:1px solid #1a5276;border-radius:8px;padding:8px 10px;font-size:11px;pointer-events:none;display:none;min-width:160px;z-index:20;line-height:1.5}
 
@@ -280,13 +281,17 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
         <button class="zbtn" onclick="zoomReset()" style="font-size:10px">⊡</button>
       </div>
       <div id="leg">
-        <div style="font-size:9px;color:#85c1e9;margin-bottom:4px;font-weight:bold">PROGRESS</div>
-        <div class="lr"><div class="ls" style="background:#555"></div><span>No data</span></div>
-        <div class="lr"><div class="ls" style="background:#c0392b"></div><span>1–25%</span></div>
-        <div class="lr"><div class="ls" style="background:#d68910"></div><span>26–50%</span></div>
-        <div class="lr"><div class="ls" style="background:#d4ac0d"></div><span>51–75%</span></div>
-        <div class="lr"><div class="ls" style="background:#27ae60"></div><span>76–100%</span></div>
-        <div style="margin-top:5px;font-size:9px;color:#7f8c8d">Tap villa to edit ✏</div>
+        <div style="font-size:9px;color:#85c1e9;margin-bottom:4px;font-weight:bold">STAGE</div>
+        <div class="lr"><div class="ls" style="background:#555555"></div><span>Not started</span></div>
+        <div class="lr"><div class="ls" style="background:#808080"></div><span>Boundary wall</span></div>
+        <div class="lr"><div class="ls" style="background:#f1c40f"></div><span>Foundation PC</span></div>
+        <div class="lr"><div class="ls" style="background:#e67e22"></div><span>Foundation RC</span></div>
+        <div class="lr"><div class="ls" style="background:#3498db"></div><span>Precast</span></div>
+        <div class="lr"><div class="ls" style="background:#9b59b6"></div><span>Masonry</span></div>
+        <div class="lr"><div class="ls" style="background:#e91e8c"></div><span>MEP</span></div>
+        <div class="lr"><div class="ls" style="background:#a8e063"></div><span>Plaster</span></div>
+        <div class="lr"><div class="ls" style="background:#27ae60"></div><span>Complete</span></div>
+        <div style="margin-top:5px;font-size:9px;color:#85c1e9">Tap villa to edit ✏</div>
       </div>
       <div id="tip"></div>
     </div>
@@ -366,7 +371,35 @@ let live={};
 let lang='en', editId=null, searchedId=null;
 let sc=1,tx=0,ty=0,drag=false,sx,sy,stx,sty,ltd=null;
 
-function col(p){
+
+const STAGES = [
+  { label: 'Not Started',   color: '#555555', discs: [] },
+  { label: 'Boundary Wall', color: '#808080', discs: ['Boundary Wall'] },
+  { label: 'Foundation PC', color: '#f1c40f', discs: ['Foundation PC'] },
+  { label: 'Foundation RC', color: '#e67e22', discs: ['Foundation RC'] },
+  { label: 'Precast',       color: '#3498db', discs: ['Precast Fab','Precast GF','Precast FF','Precast RF'] },
+  { label: 'Masonry',       color: '#9b59b6', discs: ['Masonry'] },
+  { label: 'MEP',           color: '#e91e8c', discs: ['Mech Ceiling','Mech Walls','Elec Ceiling','Elec Walls','HVAC'] },
+  { label: 'Plaster',       color: '#a8e063', discs: ['Plaster'] },
+  { label: 'Complete',      color: '#27ae60', discs: ['Wires'] },
+];
+
+function getStage(villa) {
+  if (!villa) return STAGES[0];
+  // Go from highest stage downward, return first one with any progress
+  for (let i = STAGES.length - 1; i >= 1; i--) {
+    const s = STAGES[i];
+    if (s.discs.some(d => (villa.progress[d] || 0) > 0)) return s;
+  }
+  return STAGES[0]; // Not Started
+}
+
+function getStageColor(villa) {
+  return getStage(villa).color;
+}
+
+function col(p, villa) {
+  if (villa !== undefined) return getStageColor(villa);
   if(p<=0)return'#555';if(p<=25)return'#c0392b';
   if(p<=50)return'#d68910';if(p<=75)return'#d4ac0d';return'#27ae60';
 }
@@ -431,7 +464,7 @@ function buildMap(){
     const v=live[pid];const ov=v?v.overall:-1;
     const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
     poly.setAttribute('points',pts);
-    poly.setAttribute('fill',col(ov));poly.setAttribute('fill-opacity','0.65');
+    poly.setAttribute('fill',col(ov, v));poly.setAttribute('fill-opacity','0.65');
     poly.setAttribute('stroke','#0f1923');poly.setAttribute('stroke-width','5');
     poly.setAttribute('id','p'+pid);
     if(v){
@@ -462,7 +495,7 @@ function refreshPolys(){
   for(const pid of Object.keys(POLYS)){
     const v=live[pid];if(!v)continue;
     const p=document.getElementById('p'+pid);
-    if(p)p.setAttribute('fill',col(v.overall));
+    if(p)p.setAttribute('fill',col(v.overall, v));
     const l=document.getElementById('lbl'+pid);
     if(l)l.textContent=v.overall>0?v.overall+'%':'';
   }
@@ -471,7 +504,7 @@ function refreshPolys(){
 function updateOnePoly(pid){
   const v=live[String(pid)];if(!v)return;
   const p=document.getElementById('p'+pid);
-  if(p)p.setAttribute('fill',col(v.overall));
+  if(p)p.setAttribute('fill',col(v.overall, v));
   let l=document.getElementById('lbl'+pid);
   if(!l&&v.overall>0){
     const pts=POLYS[pid];if(!pts)return;
@@ -492,7 +525,7 @@ function updateOnePoly(pid){
 function showTip(e,pid){
   const v=live[pid];if(!v)return;
   const t=document.getElementById('tip');
-  t.innerHTML=`<b style="color:#85c1e9">Villa ${v.num}</b> – ${v.type}<br>${v.nb} | Block ${v.block}<br><b>Progress: ${v.overall}%</b><br><span style="color:#85c1e9;font-size:10px">Tap to edit ✏</span>`;
+  const stg=getStage(v);t.innerHTML=`<b style="color:#85c1e9">Villa ${v.num}</b> – ${v.type}<br>${v.nb} | Block ${v.block}<br><b style="color:${stg.color}">● ${stg.label}</b> (${v.overall}%)<br><span style="color:#85c1e9;font-size:10px">Tap to edit ✏</span>`;
   t.style.display='block';moveTip(e);
 }
 function moveTip(e){
