@@ -476,18 +476,7 @@ function buildMap(){
       poly.addEventListener('mouseleave',()=>document.getElementById('tip').style.display='none');
     }
     pg.appendChild(poly);
-    if(v&&ov>0){
-      const pts2=pts.split(',').map(Number);
-      const xs=pts2.filter((_,i)=>i%2===0),ys=pts2.filter((_,i)=>i%2===1);
-      const cx=Math.round((Math.min(...xs)+Math.max(...xs))/2);
-      const cy=Math.round((Math.min(...ys)+Math.max(...ys))/2);
-      const t=document.createElementNS('http://www.w3.org/2000/svg','text');
-      t.setAttribute('x',cx);t.setAttribute('y',cy+14);
-      t.setAttribute('text-anchor','middle');t.setAttribute('font-size','52');
-      t.setAttribute('font-weight','bold');t.setAttribute('fill','#fff');
-      t.setAttribute('id','lbl'+pid);t.style.pointerEvents='none';
-      t.textContent=ov+'%';lg.appendChild(t);
-    }
+
   }
 }
 
@@ -496,8 +485,7 @@ function refreshPolys(){
     const v=live[pid];if(!v)continue;
     const p=document.getElementById('p'+pid);
     if(p)p.setAttribute('fill',col(v.overall, v));
-    const l=document.getElementById('lbl'+pid);
-    if(l)l.textContent=v.overall>0?v.overall+'%':'';
+
   }
 }
 
@@ -505,21 +493,7 @@ function updateOnePoly(pid){
   const v=live[String(pid)];if(!v)return;
   const p=document.getElementById('p'+pid);
   if(p)p.setAttribute('fill',col(v.overall, v));
-  let l=document.getElementById('lbl'+pid);
-  if(!l&&v.overall>0){
-    const pts=POLYS[pid];if(!pts)return;
-    const c=pts.split(',').map(Number);
-    const xs=c.filter((_,i)=>i%2===0),ys=c.filter((_,i)=>i%2===1);
-    const cx=Math.round((Math.min(...xs)+Math.max(...xs))/2);
-    const cy=Math.round((Math.min(...ys)+Math.max(...ys))/2);
-    l=document.createElementNS('http://www.w3.org/2000/svg','text');
-    l.setAttribute('x',cx);l.setAttribute('y',cy+14);
-    l.setAttribute('text-anchor','middle');l.setAttribute('font-size','52');
-    l.setAttribute('font-weight','bold');l.setAttribute('fill','#fff');
-    l.setAttribute('id','lbl'+pid);l.style.pointerEvents='none';
-    document.getElementById('lbls').appendChild(l);
-  }
-  if(l)l.textContent=v.overall>0?v.overall+'%':'';
+
 }
 
 function showTip(e,pid){
