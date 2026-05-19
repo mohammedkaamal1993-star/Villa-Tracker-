@@ -114,6 +114,37 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
 #lock-msg{font-size:12px;min-height:18px;margin-top:10px;color:#e74c3c}
 #lock-attempts{font-size:10px;color:#5d6d7e;margin-top:6px}
 @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+
+/* KPI DASHBOARD */
+.dpad{padding:12px}
+.kpi-header{background:#1a2a3a;border:1px solid #1a5276;border-radius:10px;padding:14px;margin-bottom:12px;text-align:center}
+.kpi-header .big{font-size:13px;font-weight:bold;color:#85c1e9;margin-bottom:10px;letter-spacing:0.5px}
+.kpi-header-stats{display:flex;gap:8px;margin-bottom:10px}
+.kpi-stat{flex:1;background:#141e28;border-radius:8px;padding:10px;text-align:center}
+.kpi-stat .num{font-size:22px;font-weight:bold;color:#85c1e9}
+.kpi-stat .lbl{font-size:10px;color:#7f8c8d;margin-top:2px}
+.phase-card{background:#1a2a3a;border-radius:10px;margin-bottom:12px;overflow:hidden;border:1px solid #253545}
+.phase-header{padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
+.phase-header:active{background:#253545}
+.phase-title{font-size:14px;font-weight:bold;color:#fff}
+.phase-title span{font-size:11px;color:#7f8c8d;font-weight:normal;margin-left:6px}
+.phase-right{display:flex;align-items:center;gap:10px}
+.phase-pct{font-size:16px;font-weight:bold}
+.phase-count{font-size:11px;color:#7f8c8d}
+.phase-bar-wrap{padding:0 14px 10px}
+.phase-bar{height:7px;background:#253545;border-radius:4px;overflow:hidden}
+.phase-bar-fill{height:100%;border-radius:4px;transition:width 0.6s}
+.phase-nbs{padding:0 14px 12px;display:none}
+.phase-nbs.open{display:block}
+.nb-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.nb-label{width:52px;font-size:11px;color:#85c1e9;font-weight:bold;flex-shrink:0}
+.nb-bar-wrap{flex:1;height:5px;background:#253545;border-radius:3px;overflow:hidden}
+.nb-bar-fill{height:100%;border-radius:3px;transition:width 0.5s}
+.nb-nums{font-size:11px;color:#aaa;white-space:nowrap;min-width:70px;text-align:right}
+.nb-pct{font-size:11px;font-weight:bold;min-width:34px;text-align:right}
+.chevron{font-size:12px;color:#7f8c8d;transition:transform 0.2s}
+.chevron.open{transform:rotate(180deg)}
+.kpi-note{font-size:10px;color:#5d6d7e;text-align:center;margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -299,21 +330,7 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
 
   <!-- DASHBOARD -->
   <div class="panel" id="panel-dashboard">
-    <div class="dpad">
-      <div class="oc">
-        <div class="big" id="d-overall">--</div>
-        <div style="font-size:11px;color:#7f8c8d;margin-top:2px" id="d-lbl">Overall Site Progress</div>
-        <div class="bar"><div class="bf" id="d-bar" style="width:0%;background:#1a5276"></div></div>
-      </div>
-      <div class="sr">
-        <div class="sc2"><div class="sv" id="st-total">--</div><div class="sl" id="st-tl">Total</div></div>
-        <div class="sc2"><div class="sv" id="st-active">--</div><div class="sl" id="st-al">Active</div></div>
-        <div class="sc2"><div class="sv" id="st-done">--</div><div class="sl" id="st-dl">Complete</div></div>
-      </div>
-      <div class="dg" id="disc-grid"></div>
-      <button class="rb" onclick="showReport()" id="rpt-btn">📋 Generate Report</button>
-      <button class="rb2" onclick="refreshSheet()">🔄 Refresh from Sheet</button>
-    </div>
+    <div class="dpad" id="dash-content"></div>
   </div>
 
   <!-- VILLA -->
@@ -558,27 +575,93 @@ function showTab(name){
 
 // ── Dashboard ─────────────────────────────────────────────────
 function buildDashboard(){
-  const all=Object.values(live).map(v=>v.overall);
-  const act=all.filter(v=>v>0),done=all.filter(v=>v>=99);
-  const ov=act.length?Math.round(act.reduce((a,b)=>a+b)/act.length):0;
-  document.getElementById('d-overall').textContent=ov+'%';
-  document.getElementById('d-bar').style.width=ov+'%';
-  document.getElementById('st-total').textContent=all.length;
-  document.getElementById('st-active').textContent=act.length;
-  document.getElementById('st-done').textContent=done.length;
-  const g=document.getElementById('disc-grid');g.innerHTML='';
-  for(const d of DISCS){
-    const vals=Object.values(live).map(v=>v.progress[d]).filter(v=>v>0);
-    const a=vals.length?Math.round(vals.reduce((a,b)=>a+b)/vals.length):0;
-    const c=col(a);
-    const n=lang==='ar'?(DISC_AR[d]||d):d,ar=lang==='ar'?d:(DISC_AR[d]||'');
-    g.innerHTML+=`<div class="dc">
-      <div style="font-size:11px;color:#85c1e9;margin-bottom:1px">${n}</div>
-      <div style="font-size:10px;color:#5d6d7e;margin-bottom:4px">${ar}</div>
-      <div style="font-size:17px;font-weight:bold;color:${c};margin-bottom:4px">${a}%</div>
-      <div class="bar"><div class="bf" style="width:${a}%;background:${c}"></div></div>
-    </div>`;
+  const vArr = Object.values(live);
+  const totalAll = vArr.length;
+  const doneAll  = vArr.filter(v=>(v.progress['Foundation RC']||0)>=100).length;
+  const activeAll= vArr.filter(v=>v.overall>0).length;
+  const pctAll   = totalAll ? Math.round(doneAll/totalAll*100) : 0;
+
+  // Group by phase -> neighborhood
+  const phases = {};
+  for(const v of vArr){
+    const ph=v.phase||'Unknown', nb=v.nb||'Unknown';
+    if(!phases[ph]) phases[ph]={};
+    if(!phases[ph][nb]) phases[ph][nb]={total:0,done:0};
+    phases[ph][nb].total++;
+    if((v.progress['Foundation RC']||0)>=100) phases[ph][nb].done++;
   }
+
+  const phColors = {'PH1':'#1a5276','PH2':'#117a65','PH3':'#7d6608'};
+  const nbColors = ['#3498db','#27ae60','#e67e22','#9b59b6','#e91e8c','#f1c40f','#85c1e9'];
+
+  let html = `
+    <div class="kpi-header">
+      <div class="big">${lang==='ar'?'مؤشرات الأداء الرئيسية — إنجاز الهيكل الإنشائي':'KPI — Foundation RC Completed'}</div>
+      <div class="kpi-header-stats">
+        <div class="kpi-stat"><div class="num">${totalAll}</div><div class="lbl">${lang==='ar'?'إجمالي الفلل':'Total Villas'}</div></div>
+        <div class="kpi-stat"><div class="num" style="color:#27ae60">${doneAll}</div><div class="lbl">${lang==='ar'?'مكتملة':'Completed'}</div></div>
+        <div class="kpi-stat"><div class="num" style="color:#f39c12">${totalAll-doneAll}</div><div class="lbl">${lang==='ar'?'متبقية':'Remaining'}</div></div>
+      </div>
+      <div class="phase-bar" style="height:10px;background:#253545;border-radius:5px;overflow:hidden;margin:0 0 6px">
+        <div class="phase-bar-fill" style="width:${pctAll}%;background:#1a5276;height:100%"></div>
+      </div>
+      <div style="font-size:12px;color:#85c1e9;font-weight:bold">${pctAll}% ${lang==='ar'?'منجز':'overall'}</div>
+    </div>
+    <div class="kpi-note">${lang==='ar'?'اضغط على المرحلة لعرض الأحياء':'Tap phase to expand neighborhoods'}</div>`;
+
+  const phOrder = Object.keys(phases).sort();
+  phOrder.forEach((ph,pi)=>{
+    const nbs = phases[ph];
+    const phTotal = Object.values(nbs).reduce((a,b)=>a+b.total,0);
+    const phDone  = Object.values(nbs).reduce((a,b)=>a+b.done,0);
+    const phPct   = phTotal ? Math.round(phDone/phTotal*100) : 0;
+    const phColor = phColors[ph] || '#1a5276';
+    const phLabel = lang==='ar' ? ph.replace('PH','المرحلة ') : ph.replace('PH','Phase ');
+
+    html += `
+    <div class="phase-card">
+      <div class="phase-header" onclick="toggleNB('nb-${ph}','chv-${ph}')">
+        <div>
+          <div class="phase-title">${phLabel} <span>${phDone}/${phTotal} ${lang==='ar'?'فيلا':'villas'}</span></div>
+        </div>
+        <div class="phase-right">
+          <div class="phase-pct" style="color:${phColor}">${phPct}%</div>
+          <div class="chevron" id="chv-${ph}">▼</div>
+        </div>
+      </div>
+      <div class="phase-bar-wrap">
+        <div class="phase-bar"><div class="phase-bar-fill" style="width:${phPct}%;background:${phColor}"></div></div>
+      </div>
+      <div class="phase-nbs" id="nb-${ph}">`;
+
+    Object.keys(nbs).sort().forEach((nb,ni)=>{
+      const d=nbs[nb];
+      const pct=d.total?Math.round(d.done/d.total*100):0;
+      const c=nbColors[ni%nbColors.length];
+      html+=`
+        <div class="nb-row">
+          <div class="nb-label">${nb}</div>
+          <div class="nb-bar-wrap"><div class="nb-bar-fill" style="width:${pct}%;background:${c}"></div></div>
+          <div class="nb-nums">${d.done}/${d.total}</div>
+          <div class="nb-pct" style="color:${c}">${pct}%</div>
+        </div>`;
+    });
+
+    html += `</div></div>`;
+  });
+
+  html += `
+    <button class="rb" onclick="showReport()" id="rpt-btn" style="margin-top:4px">📋 ${lang==='ar'?'إنشاء تقرير':'Generate Report'}</button>
+    <button class="rb2" onclick="refreshSheet()">🔄 ${lang==='ar'?'تحديث من الجدول':'Refresh from Sheet'}</button>`;
+
+  document.getElementById('dash-content').innerHTML = html;
+}
+
+function toggleNB(id, chvId){
+  const el=document.getElementById(id);
+  const chv=document.getElementById(chvId);
+  el.classList.toggle('open');
+  chv.classList.toggle('open');
 }
 
 // ── Villa search ──────────────────────────────────────────────
@@ -673,17 +756,37 @@ function closeEdit(){
 // ── Report ────────────────────────────────────────────────────
 function showReport(){
   const ds=new Date().toLocaleDateString(lang==='ar'?'ar-SA':'en-GB');
-  const all=Object.values(live).map(v=>v.overall);
-  const act=all.filter(v=>v>0);
-  const ov=act.length?Math.round(act.reduce((a,b)=>a+b)/act.length):0;
-  const dl=DISCS.map(d=>{
-    const vals=Object.values(live).map(v=>v.progress[d]).filter(v=>v>0);
-    const a=vals.length?Math.round(vals.reduce((a,b)=>a+b)/vals.length):0;
-    return`  • ${lang==='ar'?(DISC_AR[d]||d):d}: ${a}%`;
-  }).join('\n');
+  const vArr=Object.values(live);
+  const totalAll=vArr.length;
+  const doneAll=vArr.filter(v=>(v.progress['Foundation RC']||0)>=100).length;
+  const pctAll=totalAll?Math.round(doneAll/totalAll*100):0;
+
+  const phases={};
+  for(const v of vArr){
+    const ph=v.phase||'?',nb=v.nb||'?';
+    if(!phases[ph])phases[ph]={};
+    if(!phases[ph][nb])phases[ph][nb]={total:0,done:0};
+    phases[ph][nb].total++;
+    if((v.progress['Foundation RC']||0)>=100)phases[ph][nb].done++;
+  }
+
+  let lines=[];
+  for(const ph of Object.keys(phases).sort()){
+    const nbs=phases[ph];
+    const phT=Object.values(nbs).reduce((a,b)=>a+b.total,0);
+    const phD=Object.values(nbs).reduce((a,b)=>a+b.done,0);
+    const phP=phT?Math.round(phD/phT*100):0;
+    lines.push(`\n${ph.replace('PH','Phase ')}: ${phD}/${phT} (${phP}%)`);
+    for(const nb of Object.keys(nbs).sort()){
+      const d=nbs[nb];
+      const p=d.total?Math.round(d.done/d.total*100):0;
+      lines.push(`  • ${nb}: ${d.done}/${d.total} (${p}%)`);
+    }
+  }
+
   document.getElementById('rtxt').textContent=lang==='ar'
-    ?`📋 تقرير تقدم الموقع\n📅 ${ds}\n\n✅ الإجمالي: ${ov}%\n📊 النشطة: ${act.length}/${all.length}\n\n📐 التخصصات:\n${dl}`
-    :`📋 Site Progress Report\n📅 Date: ${ds}\n\n✅ Overall: ${ov}%\n📊 Active: ${act.length}/${all.length}\n\n📐 Disciplines:\n${dl}`;
+    ?`📋 تقرير مؤشرات الأداء\n📅 ${ds}\n\nالمعيار: اكتمال أساس RC\n\n✅ الإجمالي: ${doneAll}/${totalAll} (${pctAll}%)\n${lines.join('\n')}`
+    :`📋 KPI Report — Foundation RC Completed\n📅 Date: ${ds}\n\n✅ Overall: ${doneAll}/${totalAll} (${pctAll}%)\n${lines.join('\n')}`;
   document.getElementById('rmod').style.display='block';
 }
 function copyReport(){navigator.clipboard.writeText(document.getElementById('rtxt').textContent);}
