@@ -1458,16 +1458,9 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
         <button class="zbtn" onclick="zoomReset()" style="font-size:10px">⊡</button>
       </div>
       <div id="leg">
-        <div style="font-size:9px;color:#85c1e9;margin-bottom:4px;font-weight:bold">STAGE</div>
-        <div class="lr"><div class="ls" style="background:#555555"></div><span>Not started</span></div>
-        <div class="lr"><div class="ls" style="background:#808080"></div><span>Boundary wall</span></div>
-        <div class="lr"><div class="ls" style="background:#f1c40f"></div><span>Foundation PC</span></div>
-        <div class="lr"><div class="ls" style="background:#e67e22"></div><span>Foundation RC</span></div>
-        <div class="lr"><div class="ls" style="background:#3498db"></div><span>Precast</span></div>
-        <div class="lr"><div class="ls" style="background:#9b59b6"></div><span>Masonry</span></div>
-        <div class="lr"><div class="ls" style="background:#e91e8c"></div><span>MEP</span></div>
-        <div class="lr"><div class="ls" style="background:#a8e063"></div><span>Plaster</span></div>
-        <div class="lr"><div class="ls" style="background:#27ae60"></div><span>Complete</span></div>
+        <div id="leg-content">
+          <!-- filled by updateLegend() -->
+        </div>
         <div style="margin-top:5px;font-size:9px;color:#85c1e9">Tap villa to edit ✏</div>
       </div>
       <div id="tip"></div>
@@ -2371,6 +2364,9 @@ function applyFilters(){
 
   // Auto-zoom to neighborhood
   if(activeNB) zoomToNB(activeNB);
+
+  // Update legend to match filter state
+  updateLegend();
 }
 
 // ── Color scale for discipline % ─────────────────────────────────
@@ -2469,9 +2465,43 @@ buildMap = function(){
   setTimeout(()=>{
     adjustMapHeight();
     applyFilters();
+    updateLegend();
   }, 200);
 };
 
+
+// ── Dynamic legend ───────────────────────────────────────────────
+function updateLegend(){
+  const el = document.getElementById('leg-content');
+  if(!el) return;
+
+  if(activeDisc){
+    // Discipline filter active — show 3 simple states
+    const discName = activeDisc.length > 16 ? activeDisc.substring(0,14)+'...' : activeDisc;
+    el.innerHTML = `
+      <div style="font-size:9px;color:#85c1e9;margin-bottom:4px;font-weight:bold">${discName}</div>
+      <div class="lr"><div class="ls" style="background:#555555"></div><span>Not Started (0%)</span></div>
+      <div class="lr">
+        <div class="ls" style="background:linear-gradient(to right,#c0392b,#d68910,#d4ac0d);border-radius:2px"></div>
+        <span>In Progress (1–99%)</span>
+      </div>
+      <div class="lr"><div class="ls" style="background:#1a8a4a"></div><span>Completed (100%)</span></div>`;
+  } else {
+    // No filter — show full stage legend
+    el.innerHTML = `
+      <div style="font-size:9px;color:#85c1e9;margin-bottom:4px;font-weight:bold">STAGE</div>
+      <div class="lr"><div class="ls" style="background:#555555"></div><span>Not started</span></div>
+      <div class="lr"><div class="ls" style="background:#808080"></div><span>Boundary Wall</span></div>
+      <div class="lr"><div class="ls" style="background:#a0522d"></div><span>Superstructure BW</span></div>
+      <div class="lr"><div class="ls" style="background:#f1c40f"></div><span>Foundation PC</span></div>
+      <div class="lr"><div class="ls" style="background:#e67e22"></div><span>Foundation RC</span></div>
+      <div class="lr"><div class="ls" style="background:#3498db"></div><span>Precast</span></div>
+      <div class="lr"><div class="ls" style="background:#9b59b6"></div><span>Masonry</span></div>
+      <div class="lr"><div class="ls" style="background:#e91e8c"></div><span>MEP</span></div>
+      <div class="lr"><div class="ls" style="background:#a8e063"></div><span>Plaster</span></div>
+      <div class="lr"><div class="ls" style="background:#27ae60"></div><span>Complete</span></div>`;
+  }
+}
 </script>
 </body>
 </html>
