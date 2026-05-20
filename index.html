@@ -2303,56 +2303,57 @@ function filterDisc(disc){
   // Update disc button states
   document.querySelectorAll('.sl-btn:not(.nb-btn)').forEach(b=>{
     b.classList.remove('active');
+    if(disc===null && b.id==='disc-all') b.classList.add('active');
+    else if(disc && b.getAttribute('onclick') && b.getAttribute('onclick').includes("'"+disc+"'")) b.classList.add('active');
   });
-  if(disc===null){
-    document.getElementById('disc-all').classList.add('active');
-  } else {
-    document.querySelectorAll('.sl-btn:not(.nb-btn)').forEach(b=>{
-      if(b.textContent.trim()===disc) b.classList.add('active');
-    });
-  }
   applyFilters();
 }
 
 // ── Apply both filters to map ────────────────────────────────────
 function applyFilters(){
+  // Safety check — make sure live data is loaded
+  if(!live || Object.keys(live).length === 0){
+    console.warn('applyFilters: live data not ready');
+    return;
+  }
+
   const notice = document.getElementById('filter-notice');
   const isFiltered = activeNB || activeDisc;
   notice.style.display = isFiltered ? 'block' : 'none';
 
   let donutTotal=0, donutDone=0;
 
-  for(const [pid, pts] of Object.entries(POLYS)){
-    const v = live[pid];
+  for(const pid of Object.keys(POLYS)){
+    const v    = live[pid] || live[String(parseInt(pid))];
     const poly = document.getElementById('p'+pid);
     if(!poly) continue;
 
     if(!v){
-      poly.setAttribute('fill','#333');
-      poly.setAttribute('fill-opacity','0.3');
+      poly.setAttribute('fill','#444');
+      poly.setAttribute('fill-opacity','0.25');
       continue;
     }
 
-    // NB filter
+    // NB filter check
     const nbMatch = !activeNB || v.nb === activeNB;
 
     if(!nbMatch){
-      // Dim out non-matching villas
-      poly.setAttribute('fill','#253545');
-      poly.setAttribute('fill-opacity','0.2');
+      poly.setAttribute('fill','#1a2a3a');
+      poly.setAttribute('fill-opacity','0.15');
       continue;
     }
 
-    // This villa is in scope
+    // Villa is in scope — count it
     donutTotal++;
 
     if(activeDisc){
       // Color by specific discipline %
-      const pct = v.progress[activeDisc] || 0;
+      const pct = (v.progress && v.progress[activeDisc] !== undefined)
+                  ? v.progress[activeDisc] : 0;
       if(pct >= 100) donutDone++;
-      const discColor = getDiscColor(pct);
-      poly.setAttribute('fill', discColor);
-      poly.setAttribute('fill-opacity','0.75');
+      else if(pct > 0) donutDone += pct/100; // partial for donut
+      poly.setAttribute('fill', getDiscColor(pct));
+      poly.setAttribute('fill-opacity','0.80');
     } else {
       // Color by stage (default)
       const stg = getStage(v);
@@ -2362,10 +2363,13 @@ function applyFilters(){
     }
   }
 
-  // Update donut
-  updateDonut(donutDone, donutTotal);
+  // Round donut done for display
+  const donutDoneRounded = Math.round(donutDone);
 
-  // Auto-zoom to neighborhood if selected
+  // Update donut chart
+  updateDonut(donutDoneRounded, donutTotal);
+
+  // Auto-zoom to neighborhood
   if(activeNB) zoomToNB(activeNB);
 }
 
@@ -2458,14 +2462,15 @@ function adjustMapHeight(){
 // ── Init filters after map loads ─────────────────────────────────
 const _origLaunchApp = launchApp;
 // Patch buildMap to call applyFilters and updateDonut after building
+// Override buildMap to adjust height and init donut after load
 const _origBuildMap = buildMap;
-function buildMap(){
+buildMap = function(){
   _origBuildMap();
   setTimeout(()=>{
-    applyFilters();
     adjustMapHeight();
-  },100);
-}
+    applyFilters();
+  }, 200);
+};
 
 </script>
 </body>
