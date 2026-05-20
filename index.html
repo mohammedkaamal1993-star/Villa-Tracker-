@@ -2209,23 +2209,79 @@ function onInp(inp){
   }
 }
 async function saveEdit(){
-  const v=live[editId];if(!v)return;
-  const btn=document.getElementById('save-btn'),st=document.getElementById('sst');
-  btn.disabled=true;btn.textContent='Saving...';
-  st.style.color='#f39c12';st.textContent='Sending to Google Sheet...';
+  const v=live[editId]; if(!v) return;
+  const btn=document.getElementById('save-btn');
+  const st=document.getElementById('sst');
+
+  // ── Step 1: Save locally INSTANTLY ───────────────────────────
+  v.overall = avg(v.progress);
+  updateOnePoly(editId);
+  applyFilters();
+  buildDashboard();
+  if(searchedId===editId) searchVilla(editId);
+
+  // Close popup immediately — no waiting
+  st.style.color='#27ae60';
+  st.textContent='✅ Saved!';
+  btn.textContent='☁ Saved';
+  btn.disabled=true;
+  setTimeout(closeEdit, 400);
+
+  // ── Step 2: Sync to Google Sheet in background ────────────────
   if(apiUrl){
-    try{
-      const r=await fetch(apiUrl,{method:'POST',body:JSON.stringify({action:'writeBatch',villaNum:v.num,progress:v.progress})});
-      const d=await r.json();
-      if(d.error)throw new Error(d.error);
-      sync('ok');st.style.color='#27ae60';st.textContent='✅ Saved!';
-    }catch(e){sync('err');st.style.color='#c0392b';st.textContent='❌ '+e.message;btn.disabled=false;btn.textContent='☁ Save to Sheet';return;}
-  }else{st.style.color='#27ae60';st.textContent='✅ Saved locally (offline mode)';}
-  v.overall=avg(v.progress);updateOnePoly(editId);buildDashboard();
-  if(searchedId===editId)searchVilla(editId);
-  btn.textContent='☁ Save to Sheet';btn.disabled=false;
-  setTimeout(closeEdit,800);
+    sync('syncing');
+    // Queue to avoid blocking UI
+    setTimeout(async ()=>{
+      try{
+        const r = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            action: 'writeRow',   // new fast single-row write
+            villaNum: v.num,
+            progress: v.progress
+          })
+        });
+        const d = await r.json();
+        if(d.error) throw new Error(d.error);
+        sync('ok');
+        // Queue any pending saves
+        flushQueue();
+      } catch(e){
+        sync('err');
+        console.warn('Sync failed, queuing:', e.message);
+        // Add to offline queue for retry
+        saveQueue.push({villaNum: v.num, progress: {...v.progress}});
+        localStorage.setItem('vtQueue', JSON.stringify(saveQueue));
+      }
+    }, 0);
+  }
 }
+
+// ── Offline queue for failed syncs ───────────────────────────────
+let saveQueue = JSON.parse(localStorage.getItem('vtQueue') || '[]');
+
+async function flushQueue(){
+  if(!apiUrl || saveQueue.length===0) return;
+  const item = saveQueue.shift();
+  try{
+    const r = await fetch(apiUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'writeRow', villaNum:item.villaNum, progress:item.progress})
+    });
+    const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    localStorage.setItem('vtQueue', JSON.stringify(saveQueue));
+    if(saveQueue.length>0) setTimeout(flushQueue, 500);
+  } catch(e){
+    saveQueue.unshift(item); // put back
+    localStorage.setItem('vtQueue', JSON.stringify(saveQueue));
+  }
+}
+
+// Flush any queued saves on app start
+setTimeout(()=>{ if(apiUrl) flushQueue(); }, 3000);
 function closeEdit(){
   document.getElementById('eov').style.display='none';
   document.body.style.overflow='';editId=null;
