@@ -218,6 +218,21 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
 .date-inp{width:100%;padding:5px 6px;background:#141e28;border:1px solid #1a5276;
   border-radius:6px;color:#fff;font-size:11px;-webkit-appearance:none}
 .date-inp:focus{outline:none;border-color:#85c1e9}
+
+/* USERNAME SCREEN */
+#username-screen{position:fixed;inset:0;background:#0a1520;z-index:9998;display:none;
+  flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.uname-card{background:#1a2a3a;border:1px solid #1a5276;border-radius:16px;
+  padding:28px 24px;max-width:360px;width:100%;text-align:center}
+.uname-card h2{font-size:16px;color:#85c1e9;margin-bottom:6px}
+.uname-card p{font-size:11px;color:#7f8c8d;margin-bottom:20px;line-height:1.6}
+#uname-input{width:100%;padding:13px 16px;background:#141e28;border:1.5px solid #1a5276;
+  border-radius:10px;color:#fff;font-size:16px;text-align:center;margin-bottom:12px}
+#uname-input:focus{outline:none;border-color:#85c1e9}
+.uname-btn{width:100%;background:#1a5276;color:#85c1e9;border:none;border-radius:10px;
+  padding:13px;font-size:14px;font-weight:bold;cursor:pointer;touch-action:manipulation}
+#uname-display{position:absolute;top:10px;left:12px;font-size:10px;color:#7f8c8d;
+  background:rgba(15,25,35,0.9);padding:3px 8px;border-radius:8px;z-index:20;cursor:pointer}
 </style>
 </head>
 <body>
@@ -332,6 +347,21 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
 })();
 </script>
 
+
+
+<!-- USERNAME SCREEN -->
+<div id="username-screen" style="display:none;flex-direction:column;align-items:center;justify-content:center">
+  <div class="uname-card">
+    <div style="font-size:36px;margin-bottom:12px">👷</div>
+    <h2>Who are you?</h2>
+    <p>Your name will be recorded with every progress update you make on site.</p>
+    <input id="uname-input" type="text" placeholder="Enter your name..."
+      onkeydown="if(event.key==='Enter')saveUsername()"
+      autocomplete="off"/>
+    <button class="uname-btn" onclick="saveUsername()">✅ Continue</button>
+  </div>
+</div>
+<div id="uname-display" onclick="changeUsername()" style="display:none"></div>
 
 <!-- SETUP -->
 <div id="setup">
@@ -2309,6 +2339,26 @@ async function saveEdit(){
   // ── Step 2: Sync to Google Sheet in background ────────────────
   if(apiUrl){
     sync('syncing');
+    // Build audit log entries for changed disciplines
+    const auditEntries = [];
+    const now = new Date();
+    const tsStr = now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    for(const d of DISCS){
+      const newPct = v.progress[d]||0;
+      auditEntries.push({
+        villa:    v.num,
+        block:    v.block,
+        nb:       v.nb,
+        phase:    v.phase,
+        type:     v.type,
+        disc:     d,
+        pct:      newPct,
+        startDate: (VILLA_DATES[String(v.num)]||{})[d+'_start']||'',
+        finishDate:(VILLA_DATES[String(v.num)]||{})[d+'_finish']||'',
+        user:     currentUser || 'Unknown',
+        timestamp:tsStr
+      });
+    }
     // Queue to avoid blocking UI
     setTimeout(async ()=>{
       try{
@@ -2319,7 +2369,9 @@ async function saveEdit(){
             action: 'writeRow',
             villaNum: v.num,
             progress: v.progress,
-            dates: VILLA_DATES[String(v.num)] || {}
+            dates: VILLA_DATES[String(v.num)] || {},
+            audit: auditEntries,
+            user:  currentUser || 'Unknown'
           })
         });
         const d = await r.json();
@@ -2638,6 +2690,88 @@ function updateLegend(){
       <div class="lr"><div class="ls" style="background:#27ae60"></div><span>Complete</span></div>`;
   }
 }
+
+// ── Username management ──────────────────────────────────────
+let currentUser = localStorage.getItem('vtUsername') || '';
+
+function showUsernameScreen(){
+  document.getElementById('username-screen').style.display='flex';
+  document.getElementById('username-screen').style.flexDirection='column';
+  setTimeout(()=>document.getElementById('uname-input').focus(), 300);
+}
+
+function saveUsername(){
+  const name = document.getElementById('uname-input').value.trim();
+  if(!name){ 
+    document.getElementById('uname-input').style.borderColor='#e74c3c';
+    return; 
+  }
+  currentUser = name;
+  localStorage.setItem('vtUsername', name);
+  document.getElementById('username-screen').style.display='none';
+  document.getElementById('uname-display').style.display='block';
+  document.getElementById('uname-display').textContent='👷 '+name;
+  // Now launch app
+  launchApp();
+}
+
+function changeUsername(){
+  const name = prompt('Change your name:', currentUser);
+  if(name && name.trim()){
+    currentUser = name.trim();
+    localStorage.setItem('vtUsername', currentUser);
+    document.getElementById('uname-display').textContent='👷 '+currentUser;
+  }
+}
+
+// Override the lockscreen check to show username screen after unlock
+const _origCheckPw = window.checkPw;
+window.checkPw = function(){
+  // Store original launchApp
+  const origLaunch = window.launchApp;
+  // Temporarily override launchApp to show username screen instead
+  window.launchApp = function(){
+    window.launchApp = origLaunch; // restore
+    if(!currentUser){
+      showUsernameScreen();
+    } else {
+      document.getElementById('uname-display').style.display='block';
+      document.getElementById('uname-display').textContent='👷 '+currentUser;
+      origLaunch();
+    }
+  };
+  _origCheckPw();
+};
+
+// Handle skip button too
+const _origSkip = window.skipSetup;
+window.skipSetup = function(){
+  if(!currentUser){
+    // Need username first
+    const origLaunch = window.launchApp;
+    window.launchApp = function(){
+      window.launchApp = origLaunch;
+      origLaunch();
+    };
+    showUsernameScreen();
+    // Override saveUsername to call skip after
+    const origSave = window.saveUsername;
+    window.saveUsername = function(){
+      origSave();
+      if(currentUser) _origSkip();
+    };
+  } else {
+    _origSkip();
+  }
+};
+
+// On load — if already unlocked AND has username, show display badge
+window.addEventListener('load', ()=>{
+  if(currentUser){
+    document.getElementById('uname-display').style.display='block';
+    document.getElementById('uname-display').textContent='👷 '+currentUser;
+  }
+});
 </script>
 </body>
 </html>
