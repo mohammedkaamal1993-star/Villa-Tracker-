@@ -233,9 +233,19 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
   padding:13px;font-size:14px;font-weight:bold;cursor:pointer;touch-action:manipulation}
 #uname-display{position:absolute;top:10px;left:12px;font-size:10px;color:#7f8c8d;
   background:rgba(15,25,35,0.9);padding:3px 8px;border-radius:8px;z-index:20;cursor:pointer}
+
+/* ERROR/SUCCESS TOAST */
+#toast{position:fixed;top:50px;left:50%;transform:translateX(-50%) translateY(-20px);
+  background:#922b21;color:#fff;padding:10px 16px;border-radius:8px;font-size:12px;
+  z-index:500;max-width:90%;box-shadow:0 4px 12px rgba(0,0,0,0.4);
+  opacity:0;transition:all 0.3s;pointer-events:none;text-align:center;line-height:1.5}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.success{background:#1e7e34}
 </style>
 </head>
 <body>
+<div id="toast"></div>
+
 <!-- LOCK SCREEN -->
 <div id="lockscreen">
   <div class="lock-card">
@@ -2337,57 +2347,69 @@ async function saveEdit(){
   setTimeout(closeEdit, 400);
 
   // ── Step 2: Sync to Google Sheet in background ────────────────
-  if(apiUrl){
-    sync('syncing');
-    // Build audit log entries for changed disciplines
-    const auditEntries = [];
-    const now = new Date();
-    const tsStr = now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-    for(const d of DISCS){
-      const newPct = v.progress[d]||0;
-      auditEntries.push({
-        villa:    v.num,
-        block:    v.block,
-        nb:       v.nb,
-        phase:    v.phase,
-        type:     v.type,
-        disc:     d,
-        pct:      newPct,
-        startDate: (VILLA_DATES[String(v.num)]||{})[d+'_start']||'',
-        finishDate:(VILLA_DATES[String(v.num)]||{})[d+'_finish']||'',
-        user:     currentUser || 'Unknown',
-        timestamp:tsStr
-      });
-    }
-    // Queue to avoid blocking UI
-    setTimeout(async ()=>{
-      try{
-        const r = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({
-            action: 'writeRow',
-            villaNum: v.num,
-            progress: v.progress,
-            dates: VILLA_DATES[String(v.num)] || {},
-            audit: auditEntries,
-            user:  currentUser || 'Unknown'
-          })
-        });
-        const d = await r.json();
-        if(d.error) throw new Error(d.error);
-        sync('ok');
-        // Queue any pending saves
-        flushQueue();
-      } catch(e){
-        sync('err');
-        console.warn('Sync failed, queuing:', e.message);
-        // Add to offline queue for retry
-        saveQueue.push({villaNum: v.num, progress: {...v.progress}});
-        localStorage.setItem('vtQueue', JSON.stringify(saveQueue));
-      }
-    }, 0);
+  if(!apiUrl){
+    showToast('⚠ No Google Sheet connected — saved locally only', true);
+    return;
   }
+
+  sync('syncing');
+  const auditEntries = [];
+  const now = new Date();
+  const tsStr = now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  for(const d of DISCS){
+    const newPct = v.progress[d]||0;
+    auditEntries.push({
+      villa: v.num, block: v.block, nb: v.nb, phase: v.phase, type: v.type,
+      disc: d, pct: newPct,
+      startDate: (VILLA_DATES[String(v.num)]||{})[d+'_start']||'',
+      finishDate:(VILLA_DATES[String(v.num)]||{})[d+'_finish']||'',
+      user: currentUser || 'Unknown', timestamp: tsStr
+    });
+  }
+
+  setTimeout(async ()=>{
+    try{
+      const r = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          action: 'writeRow',
+          villaNum: v.num,
+          progress: v.progress,
+          dates: VILLA_DATES[String(v.num)] || {},
+          audit: auditEntries,
+          user:  currentUser || 'Unknown'
+        })
+      });
+
+      // Check HTTP status first
+      if(!r.ok){
+        throw new Error('HTTP ' + r.status + ' ' + r.statusText);
+      }
+
+      const text = await r.text();
+      let d;
+      try{
+        d = JSON.parse(text);
+      }catch(parseErr){
+        // Response wasn't JSON — likely an HTML error page from Google
+        throw new Error('Invalid response (not JSON): ' + text.substring(0,150));
+      }
+
+      if(d.error) throw new Error(d.error);
+
+      sync('ok');
+      showToast('✅ Villa ' + v.num + ' synced to Google Sheet', false);
+      flushQueue();
+
+    } catch(e){
+      sync('err');
+      showToast('❌ Sync failed for Villa ' + v.num + ': ' + e.message, true);
+      console.error('Sync failed:', e);
+      saveQueue.push({villaNum: v.num, progress: {...v.progress}, dates: VILLA_DATES[String(v.num)]||{}, audit: auditEntries, user: currentUser||'Unknown'});
+      localStorage.setItem('vtQueue', JSON.stringify(saveQueue));
+    }
+  }, 0);
 }
 
 // ── Offline queue for failed syncs ───────────────────────────────
@@ -2400,14 +2422,24 @@ async function flushQueue(){
     const r = await fetch(apiUrl,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({action:'writeRow', villaNum:item.villaNum, progress:item.progress})
+      body: JSON.stringify({
+        action:'writeRow',
+        villaNum:item.villaNum,
+        progress:item.progress,
+        dates: item.dates||{},
+        audit: item.audit||[],
+        user: item.user||'Unknown'
+      })
     });
-    const d = await r.json();
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const text = await r.text();
+    const d = JSON.parse(text);
     if(d.error) throw new Error(d.error);
     localStorage.setItem('vtQueue', JSON.stringify(saveQueue));
+    showToast('✅ Queued save for Villa '+item.villaNum+' synced', false);
     if(saveQueue.length>0) setTimeout(flushQueue, 500);
   } catch(e){
-    saveQueue.unshift(item); // put back
+    saveQueue.unshift(item);
     localStorage.setItem('vtQueue', JSON.stringify(saveQueue));
   }
 }
@@ -2795,6 +2827,16 @@ function changeApiUrl(){
   }).catch(()=>{
     alert('⚠ Connected but failed to load data — check the URL and try again.');
   });
+}
+
+// ── Toast notification ───────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg, isError){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = isError ? 'show' : 'show success';
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ t.classList.remove('show'); }, isError ? 6000 : 2500);
 }
 </script>
 </body>
