@@ -2371,7 +2371,7 @@ async function saveEdit(){
     try{
       const r = await fetch(apiUrl, {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: {'Content-Type':'text/plain;charset=utf-8'},
         body: JSON.stringify({
           action: 'writeRow',
           villaNum: v.num,
@@ -2421,7 +2421,7 @@ async function flushQueue(){
   try{
     const r = await fetch(apiUrl,{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({
         action:'writeRow',
         villaNum:item.villaNum,
