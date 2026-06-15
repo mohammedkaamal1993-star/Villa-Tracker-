@@ -388,7 +388,7 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
     <div style="font-size:10px;color:#7f8c8d">Phase 01 – Live Sync</div>
   </div>
   <div class="hbtns">
-    <div id="sync-badge"><div id="sync-dot"></div><span id="sync-lbl">Offline</span></div>
+    <div id="sync-badge" onclick="changeApiUrl()" style="cursor:pointer"><div id="sync-dot"></div><span id="sync-lbl">Offline</span></div>
     <button class="lang-btn" onclick="toggleLang()">عربي/EN</button>
   </div>
 </div>
@@ -2772,6 +2772,30 @@ window.addEventListener('load', ()=>{
     document.getElementById('uname-display').textContent='👷 '+currentUser;
   }
 });
+
+// ── Change API URL (tap sync badge) ──────────────────────────────
+function changeApiUrl(){
+  const current = apiUrl || '(none)';
+  const newUrl = prompt(
+    'Current Google Sheet API URL:\n' + current + '\n\nPaste NEW Web App URL:',
+    apiUrl || ''
+  );
+  if(newUrl === null) return; // cancelled
+  const trimmed = newUrl.trim();
+  if(!trimmed) return;
+  if(!trimmed.includes('script.google.com')){
+    alert('That doesn\'t look like a valid Google Apps Script URL.');
+    return;
+  }
+  apiUrl = trimmed;
+  localStorage.setItem('vtApiUrl', apiUrl);
+  sync('syncing');
+  refreshSheet().then(()=>{
+    alert('✅ Reconnected! Data refreshed from new URL.');
+  }).catch(()=>{
+    alert('⚠ Connected but failed to load data — check the URL and try again.');
+  });
+}
 </script>
 </body>
 </html>
