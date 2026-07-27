@@ -1758,7 +1758,14 @@ async function connectSheet(){
     const d=await r.json();
     if(d.error)throw new Error(d.error);
     apiUrl=url;localStorage.setItem('vtApiUrl',url);
-    live=d;msg.style.color='#27ae60';msg.textContent='✅ Connected!';
+    // Handle both old format (flat) and new format {schema, villas}
+    if(d.villas){
+      live=d.villas;
+      if(d.schema) applyDynamicSchema(d.schema);
+    } else {
+      live=d;
+    }
+    msg.style.color='#27ae60';msg.textContent='✅ Connected!';
     setTimeout(launchApp,600);
   }catch(e){
     msg.style.color='#c0392b';msg.textContent='❌ '+e.message;
@@ -1786,7 +1793,14 @@ async function refreshSheet(){
     const r=await fetch(apiUrl+'?action=read&t='+Date.now());
     const d=await r.json();
     if(d.error)throw new Error(d.error);
-    live=d;refreshPolys();buildDashboard();sync('ok');
+    // Handle both old format (flat) and new format {schema, villas}
+    if(d.villas){
+      live=d.villas;
+      if(d.schema) applyDynamicSchema(d.schema);
+    } else {
+      live=d;
+    }
+    refreshPolys();buildDashboard();sync('ok');
     if(document.getElementById('vi').value)searchVilla(document.getElementById('vi').value);
   }catch(e){sync('err');}
 }
@@ -2837,6 +2851,36 @@ function showToast(msg, isError){
   t.className = isError ? 'show' : 'show success';
   if(toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>{ t.classList.remove('show'); }, isError ? 6000 : 2500);
+}
+
+// ── Apply dynamic schema from Google Sheet ───────────────────────
+function applyDynamicSchema(schema){
+  if(!schema || !schema.disciplines) return;
+
+  // Get new discipline list from schema
+  const newDiscs = Object.keys(schema.disciplines);
+  if(newDiscs.length === 0) return;
+
+  // Update DISCS array dynamically
+  DISCS.length = 0;
+  newDiscs.forEach(d => DISCS.push(d));
+
+  // Update VILLA_DATES with planned dates from schema
+  for(const [vid, v] of Object.entries(live)){
+    if(v.dates){
+      if(!VILLA_DATES[vid]) VILLA_DATES[vid] = {};
+      Object.assign(VILLA_DATES[vid], v.dates);
+    }
+  }
+
+  // Update FULL_NAMES with any new disciplines
+  for(const disc of newDiscs){
+    if(!FULL_NAMES[disc]) FULL_NAMES[disc] = disc;
+    if(!FULL_NAMES_AR[disc]) FULL_NAMES_AR[disc] = disc;
+    if(!DISC_AR[disc]) DISC_AR[disc] = disc;
+  }
+
+  console.log('Dynamic schema applied:', newDiscs.length, 'disciplines');
 }
 </script>
 </body>
