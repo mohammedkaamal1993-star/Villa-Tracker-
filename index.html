@@ -2806,58 +2806,34 @@ function showToast(msg, isError){
 function applyDynamicSchema(schema){
   if(!schema || !schema.disciplines) return;
 
-  const skipKeywords = ['start','finish','actual','planned','activity id','(a)','date'];
+  // Comprehensive mapping of ALL possible sheet names -> short app keys
+  const FULL_TO_SHORT = {"boundary wall": "Boundary Wall", "superstructure and finishes of boundary wall": "Superstructure BW", "superstructure bw": "Superstructure BW", "foundation blind concrete": "Foundation PC", "foundation pc": "Foundation PC", "foundation blind concrete ": "Foundation PC", "foundation reinforced concrete": "Foundation RC", "foundation rc": "Foundation RC", " foundation reinforced concrete ": "Foundation RC", "precast fabrication": "Precast Fab", "precast fab": "Precast Fab", "precast installation gf": "Precast GF", "precast gf": "Precast GF", "precast installation ff": "Precast FF", "precast ff": "Precast FF", "precast installation rf": "Precast RF", "precast rf": "Precast RF", "masonry": "Masonry", "roofing system": "Roofing", "roofing": "Roofing", "mech pipe ceiling 1st fix": "Mech Ceiling", "mech pipe (ceiling) 1st fix": "Mech Ceiling", "mech pipe (ceilling) 1st fix": "Mech Ceiling", "mech ceiling": "Mech Ceiling", "mech pipe walls 1st fix": "Mech Walls", "mech pipe (walls) 1st fix": "Mech Walls", "mech walls": "Mech Walls", "elec conduits ceiling 1st fix": "Elec Ceiling", "elec conduits ceilling (1st fix)": "Elec Ceiling", "elec conduits ceilling 1st fix": "Elec Ceiling", "elec ceiling": "Elec Ceiling", "elec conduits walls 1st fix": "Elec Walls", "elec conduits walls (1st fix)": "Elec Walls", "elec walls": "Elec Walls", "plaster": "Plaster", "hvac duct 1st fix": "HVAC", "mech pipe hvac duct 1st fix": "HVAC", "hvac": "HVAC", "wires pulling 2nd fix": "Wires", "wires pulling (2nd fix)": "Wires", "wires": "Wires", "insulation wet area works": "Insulation Wet Area", "insulation wet area": "Insulation Wet Area", "preparation and 1st coat for facade": "Preparation 1st Coat", "preparation and 1st coat for fa\u00e7ade": "Preparation 1st Coat", "preparation 1st coat": "Preparation 1st Coat", "internal preparation paint work": "Internal Prep Paint", "internal prepration paint work": "Internal Prep Paint", "internal preparation paint work and 1st coat": "Internal Prep Paint", "internal prepration paint work and 1st coat": "Internal Prep Paint", "internal prep paint": "Internal Prep Paint"};
 
-  // Build reverse map: full sheet name -> short key (from FULL_NAMES)
-  const reverseMap = {};
-  for(const [shortKey, fullName] of Object.entries(FULL_NAMES)){
-    reverseMap[fullName.toLowerCase()] = shortKey;
-    // Also map the short key itself
-    reverseMap[shortKey.toLowerCase()] = shortKey;
+  function toShortKey(name){
+    return FULL_TO_SHORT[name.toLowerCase().trim()] || null;
   }
 
-  // Get disciplines from schema, filter out date/ID columns
-  const schemaDiscs = Object.keys(schema.disciplines).filter(d => {
-    const dl = d.toLowerCase();
-    return !skipKeywords.some(k => dl.includes(k));
-  });
-
-  // Fix live data: translate full names to short keys in progress
+  // Fix ALL villa progress data — translate full names to short keys
   for(const [vid, v] of Object.entries(live)){
     if(!v.progress) continue;
-    const newProgress = {};
+    const cleaned = {};
     for(const [discName, val] of Object.entries(v.progress)){
-      const shortKey = reverseMap[discName.toLowerCase()];
+      const shortKey = toShortKey(discName);
       if(shortKey){
-        // Use short key, take max value if both exist
-        newProgress[shortKey] = Math.max(newProgress[shortKey]||0, val);
-      } else {
-        // Unknown disc — check if genuinely new (not a date/ID column)
-        const dl = discName.toLowerCase();
-        const isSkip = skipKeywords.some(k => dl.includes(k));
-        if(!isSkip) newProgress[discName] = val;
+        // Use max value if both full name and short key exist
+        cleaned[shortKey] = Math.max(cleaned[shortKey]||0, val);
       }
+      // Ignore if no mapping found (date/ID columns etc.)
     }
-    v.progress = newProgress;
-    // Recalculate overall
-    const vals = Object.values(newProgress);
+    v.progress = cleaned;
+    // Recalculate overall based on known DISCS only
+    const vals = DISCS.map(d => cleaned[d]||0);
     v.overall = vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : 0;
 
     // Update VILLA_DATES
     if(v.dates){
       if(!VILLA_DATES[vid]) VILLA_DATES[vid] = {};
       Object.assign(VILLA_DATES[vid], v.dates);
-    }
-  }
-
-  // Add genuinely new disciplines only
-  for(const d of schemaDiscs){
-    const shortKey = reverseMap[d.toLowerCase()];
-    if(!shortKey && !DISCS.includes(d)){
-      DISCS.push(d);
-      if(!FULL_NAMES[d]) FULL_NAMES[d] = d;
-      if(!FULL_NAMES_AR[d]) FULL_NAMES_AR[d] = d;
-      if(!DISC_AR[d]) DISC_AR[d] = d;
     }
   }
 
