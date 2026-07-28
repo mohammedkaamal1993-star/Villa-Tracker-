@@ -2293,24 +2293,7 @@ function buildEditDiscs(v){
   c.innerHTML = `<div class="exc-table">${rows}</div>`;
 }
 
-function setStage(uid, disc, pct){
-  const inp = document.getElementById('inp-'+uid);
-  if(!inp) return;
-  inp.value = pct;
-  const v = live[editId];
-  v.progress[disc] = pct; v.overall = avg(v.progress);
-  setBadge(v.overall);
-  const bm = document.getElementById('bm-'+uid);
-  if(bm){ bm.style.width=pct+'%'; bm.style.background=col(pct); }
-  const steps = LEGEND_GUIDE[disc]||[];
-  const btns  = document.getElementById('stg-'+uid);
-  if(btns){
-    btns.querySelectorAll('.stage-btn').forEach((btn,i)=>{
-      if(!steps[i]) return;
-      btn.className = pct===steps[i].pct?'stage-btn active':(pct>steps[i].pct?'stage-btn done':'stage-btn');
-    });
-  }
-}
+
 
 function onDateChange(inp){
   const disc = inp.dataset.disc;
@@ -2323,24 +2306,7 @@ function onDateChange(inp){
   VILLA_DATES[vid][disc+'_'+type] = val;
 }
 
-function setStage(uid, disc, pct){
-  const inp=document.getElementById('inp-'+uid);
-  if(!inp) return;
-  inp.value=pct;
-  const v=live[editId];
-  v.progress[disc]=pct; v.overall=avg(v.progress);
-  setBadge(v.overall);
-  const bm=document.getElementById('bm-'+uid);
-  if(bm){bm.style.width=pct+'%';bm.style.background=col(pct);}
-  const steps=LEGEND_GUIDE[d]||[];
-  const btns=document.getElementById('stg-'+uid);
-  if(btns){
-    btns.querySelectorAll('.stage-btn').forEach((btn,i)=>{
-      if(!steps[i])return;
-      btn.className=pct===steps[i].pct?'stage-btn active':(pct>steps[i].pct?'stage-btn done':'stage-btn');
-    });
-  }
-}
+
 
 function setStage(uid, disc, pct){
   // Fill the input as suggestion
@@ -2654,35 +2620,7 @@ function getDiscColor(pct){
 }
 
 // ── Update donut chart ───────────────────────────────────────────
-function updateDonut(done, total){
-  const pct   = total ? Math.round(done/total*100) : 0;
-  const circ  = 2 * Math.PI * 28; // circumference
-  const dash  = (pct/100) * circ;
-  const arc   = document.getElementById('donut-arc');
-  const pctEl = document.getElementById('donut-pct');
-  const cntEl = document.getElementById('donut-count');
-  const ttl   = document.getElementById('donut-title');
-  const sub   = document.getElementById('donut-sub');
 
-  // Color arc based on %
-  const arcColor = pct>=75?'#27ae60':pct>=50?'#d4ac0d':pct>=25?'#d68910':'#c0392b';
-  arc.setAttribute('stroke', pct===0?'#253545':arcColor);
-  arc.setAttribute('stroke-dasharray', `${dash.toFixed(1)} ${(circ-dash).toFixed(1)}`);
-  pctEl.textContent = pct+'%';
-  cntEl.textContent = done+'/'+total;
-
-  // Title shows what's being measured
-  if(activeDisc){
-    ttl.textContent = activeDisc;
-    sub.textContent = '100% done';
-  } else if(activeNB){
-    ttl.textContent = activeNB;
-    sub.textContent = 'villas active';
-  } else {
-    ttl.textContent = 'Overall';
-    sub.textContent = 'villas';
-  }
-}
 
 // ── Zoom to neighborhood bounds ──────────────────────────────────
 function zoomToNB(nb){
@@ -3026,14 +2964,30 @@ function updateDonutFromSheet(){
 }
 
 // Override updateDonut to prefer sheet data when available
-const _origUpdateDonut = updateDonut;
 function updateDonut(done, total){
-  // If we have sheet data, use it instead of calculated data
+  // If we have sheet data and no filter active, use sheet data
   if(overallData && !activeDisc && !activeNB){
     updateDonutFromSheet();
     return;
   }
-  _origUpdateDonut(done, total);
+  // Otherwise calculate from live data
+  const pct   = total ? Math.round(done/total*100) : 0;
+  const circ  = 2 * Math.PI * 28;
+  const dash  = (pct/100) * circ;
+  const arc   = document.getElementById('donut-arc');
+  const pctEl = document.getElementById('donut-pct');
+  const cntEl = document.getElementById('donut-count');
+  const ttl   = document.getElementById('donut-title');
+  const sub   = document.getElementById('donut-sub');
+  const chg   = document.getElementById('donut-change');
+  const arcColor = pct>=75?'#27ae60':pct>=50?'#d4ac0d':pct>=25?'#d68910':'#c0392b';
+  if(arc){ arc.setAttribute('stroke', pct===0?'#253545':arcColor);
+    arc.setAttribute('stroke-dasharray', `${dash.toFixed(1)} ${(circ-dash).toFixed(1)}`); }
+  if(pctEl) pctEl.textContent = pct+'%';
+  if(cntEl) cntEl.textContent = done+'/'+total;
+  if(ttl) ttl.textContent = activeDisc ? activeDisc.substring(0,10) : (activeNB || 'Overall');
+  if(sub) sub.textContent = activeDisc ? '100% done' : 'villas';
+  if(chg) chg.textContent = '';
 }
 </script>
 </body>
