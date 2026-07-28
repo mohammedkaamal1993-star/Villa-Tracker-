@@ -2806,37 +2806,62 @@ function showToast(msg, isError){
 function applyDynamicSchema(schema){
   if(!schema || !schema.disciplines) return;
 
-  // Filter to only KNOWN disciplines — ignore date/ID columns
-  // A valid discipline name should NOT contain these keywords
   const skipKeywords = ['start','finish','actual','planned','activity id','(a)','date'];
-  const newDiscs = Object.keys(schema.disciplines).filter(d => {
+
+  // Build reverse map: full sheet name -> short key (from FULL_NAMES)
+  const reverseMap = {};
+  for(const [shortKey, fullName] of Object.entries(FULL_NAMES)){
+    reverseMap[fullName.toLowerCase()] = shortKey;
+    // Also map the short key itself
+    reverseMap[shortKey.toLowerCase()] = shortKey;
+  }
+
+  // Get disciplines from schema, filter out date/ID columns
+  const schemaDiscs = Object.keys(schema.disciplines).filter(d => {
     const dl = d.toLowerCase();
     return !skipKeywords.some(k => dl.includes(k));
   });
 
-  if(newDiscs.length === 0) return;
-
-  // Only add disciplines NOT already in DISCS
-  for(const d of newDiscs){
-    if(!DISCS.includes(d)) DISCS.push(d);
-  }
-
-  // Update VILLA_DATES with dates from schema
+  // Fix live data: translate full names to short keys in progress
   for(const [vid, v] of Object.entries(live)){
+    if(!v.progress) continue;
+    const newProgress = {};
+    for(const [discName, val] of Object.entries(v.progress)){
+      const shortKey = reverseMap[discName.toLowerCase()];
+      if(shortKey){
+        // Use short key, take max value if both exist
+        newProgress[shortKey] = Math.max(newProgress[shortKey]||0, val);
+      } else {
+        // Unknown disc — check if genuinely new (not a date/ID column)
+        const dl = discName.toLowerCase();
+        const isSkip = skipKeywords.some(k => dl.includes(k));
+        if(!isSkip) newProgress[discName] = val;
+      }
+    }
+    v.progress = newProgress;
+    // Recalculate overall
+    const vals = Object.values(newProgress);
+    v.overall = vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : 0;
+
+    // Update VILLA_DATES
     if(v.dates){
       if(!VILLA_DATES[vid]) VILLA_DATES[vid] = {};
       Object.assign(VILLA_DATES[vid], v.dates);
     }
   }
 
-  // Update name maps for any new disciplines
-  for(const disc of newDiscs){
-    if(!FULL_NAMES[disc]) FULL_NAMES[disc] = disc;
-    if(!FULL_NAMES_AR[disc]) FULL_NAMES_AR[disc] = disc;
-    if(!DISC_AR[disc]) DISC_AR[disc] = disc;
+  // Add genuinely new disciplines only
+  for(const d of schemaDiscs){
+    const shortKey = reverseMap[d.toLowerCase()];
+    if(!shortKey && !DISCS.includes(d)){
+      DISCS.push(d);
+      if(!FULL_NAMES[d]) FULL_NAMES[d] = d;
+      if(!FULL_NAMES_AR[d]) FULL_NAMES_AR[d] = d;
+      if(!DISC_AR[d]) DISC_AR[d] = d;
+    }
   }
 
-  console.log('Dynamic schema applied:', newDiscs.length, 'valid disciplines');
+  console.log('Dynamic schema applied, disciplines:', DISCS.length);
   buildSlicers();
 }
 
