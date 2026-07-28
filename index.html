@@ -1724,15 +1724,20 @@ let sc=1,tx=0,ty=0,drag=false,sx,sy,stx,sty,ltd=null;
 
 
 const STAGES = [
-  { label: 'Not Started',   color: '#555555', discs: [] },
-  { label: 'Boundary Wall', color: '#808080', discs: ['Boundary Wall'] },
-  { label: 'Foundation PC', color: '#f1c40f', discs: ['Foundation PC'] },
-  { label: 'Foundation RC', color: '#e67e22', discs: ['Foundation RC'] },
-  { label: 'Precast',       color: '#3498db', discs: ['Precast Fab','Precast GF','Precast FF','Precast RF'] },
-  { label: 'Masonry',       color: '#9b59b6', discs: ['Masonry'] },
-  { label: 'MEP',           color: '#e91e8c', discs: ['Mech Ceiling','Mech Walls','Elec Ceiling','Elec Walls','HVAC'] },
-  { label: 'Plaster',       color: '#a8e063', discs: ['Plaster'] },
-  { label: 'Complete',      color: '#27ae60', discs: ['Wires'] },
+  { label: 'Not Started',        color: '#555555', discs: [] },
+  { label: 'Boundary Wall',      color: '#808080', discs: ['Boundary Wall'] },
+  { label: 'Superstructure BW',  color: '#a0522d', discs: ['Superstructure BW'] },
+  { label: 'Foundation PC',      color: '#f1c40f', discs: ['Foundation PC'] },
+  { label: 'Foundation RC',      color: '#e67e22', discs: ['Foundation RC'] },
+  { label: 'Precast',            color: '#3498db', discs: ['Precast Fab','Precast GF','Precast FF','Precast RF'] },
+  { label: 'Masonry',            color: '#9b59b6', discs: ['Masonry'] },
+  { label: 'Roofing',            color: '#7d3c98', discs: ['Roofing'] },
+  { label: 'MEP',                color: '#e91e8c', discs: ['Mech Ceiling','Mech Walls','Elec Ceiling','Elec Walls','HVAC'] },
+  { label: 'Plaster',            color: '#a8e063', discs: ['Plaster'] },
+  { label: 'Wires',              color: '#27ae60', discs: ['Wires'] },
+  { label: 'Insulation Wet Area',color: '#5dade2', discs: ['Insulation Wet Area'] },
+  { label: 'Preparation 1st Coat',color: '#f0b27a', discs: ['Preparation 1st Coat'] },
+  { label: 'Internal Prep Paint',color: '#a9cce3', discs: ['Internal Prep Paint'] },
 ];
 
 function getStage(villa) {
