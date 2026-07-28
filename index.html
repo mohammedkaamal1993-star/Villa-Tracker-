@@ -2922,16 +2922,18 @@ function updateLegend(){
   if(!el) return;
 
   if(activeDisc){
+    // Discipline filter active — show exact colors matching getDiscColor()
     const discName = activeDisc.length > 16 ? activeDisc.substring(0,13)+'...' : activeDisc;
     el.innerHTML = `
       <div style="font-size:9px;color:#85c1e9;margin-bottom:4px;font-weight:bold">${discName}</div>
       <div class="lr"><div class="ls" style="background:#555555"></div><span>Not Started (0%)</span></div>
-      <div class="lr">
-        <div class="ls" style="background:linear-gradient(to right,#c0392b,#d68910,#d4ac0d);border-radius:2px"></div>
-        <span>In Progress (1–99%)</span>
-      </div>
+      <div class="lr"><div class="ls" style="background:#c0392b"></div><span>1–25%</span></div>
+      <div class="lr"><div class="ls" style="background:#d68910"></div><span>26–50%</span></div>
+      <div class="lr"><div class="ls" style="background:#d4ac0d"></div><span>51–75%</span></div>
+      <div class="lr"><div class="ls" style="background:#27ae60"></div><span>76–99%</span></div>
       <div class="lr"><div class="ls" style="background:#1a8a4a"></div><span>Completed (100%)</span></div>`;
   } else {
+    // No filter — build from STAGES array
     let rows = '<div style="font-size:9px;color:#85c1e9;margin-bottom:4px;font-weight:bold">STAGE</div>';
     rows += '<div class="lr"><div class="ls" style="background:#555555"></div><span>Not started</span></div>';
     for(const s of STAGES){
