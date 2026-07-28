@@ -1804,6 +1804,7 @@ function launchApp(){
   const app=document.getElementById('app');
   app.style.display='flex';
   buildMap();buildDashboard();zoomReset();
+  updateLegend(); // update legend immediately on load
   if(apiUrl)sync('ok');
   setInterval(()=>{if(apiUrl)refreshSheet();},60000);
 }
@@ -2523,7 +2524,7 @@ function toggleLang(){
 }
 
 // Auto-connect if saved
-window.addEventListener('load',()=>{
+window.addEventListener('load',()=>{ setTimeout(updateLegend, 500);
   if(apiUrl){
     document.getElementById('aurl').value=apiUrl;
     connectSheet();
@@ -2725,37 +2726,7 @@ buildMap = function(){
 
 
 // ── Dynamic legend ───────────────────────────────────────────────
-function updateLegend(){
-  const el = document.getElementById('leg-content');
-  if(!el) return;
-
-  if(activeDisc){
-    // Discipline filter active — show 3 simple states
-    const discName = activeDisc.length > 16 ? activeDisc.substring(0,14)+'...' : activeDisc;
-    el.innerHTML = `
-      <div style="font-size:9px;color:#85c1e9;margin-bottom:4px;font-weight:bold">${discName}</div>
-      <div class="lr"><div class="ls" style="background:#555555"></div><span>Not Started (0%)</span></div>
-      <div class="lr">
-        <div class="ls" style="background:linear-gradient(to right,#c0392b,#d68910,#d4ac0d);border-radius:2px"></div>
-        <span>In Progress (1–99%)</span>
-      </div>
-      <div class="lr"><div class="ls" style="background:#1a8a4a"></div><span>Completed (100%)</span></div>`;
-  } else {
-    // No filter — show full stage legend
-    el.innerHTML = `
-      <div style="font-size:9px;color:#85c1e9;margin-bottom:4px;font-weight:bold">STAGE</div>
-      <div class="lr"><div class="ls" style="background:#555555"></div><span>Not started</span></div>
-      <div class="lr"><div class="ls" style="background:#808080"></div><span>Boundary Wall</span></div>
-      <div class="lr"><div class="ls" style="background:#a0522d"></div><span>Superstructure BW</span></div>
-      <div class="lr"><div class="ls" style="background:#f1c40f"></div><span>Foundation PC</span></div>
-      <div class="lr"><div class="ls" style="background:#e67e22"></div><span>Foundation RC</span></div>
-      <div class="lr"><div class="ls" style="background:#3498db"></div><span>Precast</span></div>
-      <div class="lr"><div class="ls" style="background:#9b59b6"></div><span>Masonry</span></div>
-      <div class="lr"><div class="ls" style="background:#e91e8c"></div><span>MEP</span></div>
-      <div class="lr"><div class="ls" style="background:#a8e063"></div><span>Plaster</span></div>
-      <div class="lr"><div class="ls" style="background:#27ae60"></div><span>Complete</span></div>`;
-  }
-}
+// updateLegend — moved to dynamic version above
 
 // ── Username management ──────────────────────────────────────
 let currentUser = localStorage.getItem('vtUsername') || '';
@@ -2942,6 +2913,32 @@ function buildSlicers(){
     btn.textContent = nb;
     btn.onclick = () => filterNB(nb);
     nbRow.appendChild(btn);
+  }
+}
+
+// ── Dynamic legend ────────────────────────────────────────────
+function updateLegend(){
+  const el = document.getElementById('leg-content');
+  if(!el) return;
+
+  if(activeDisc){
+    const discName = activeDisc.length > 16 ? activeDisc.substring(0,13)+'...' : activeDisc;
+    el.innerHTML = `
+      <div style="font-size:9px;color:#85c1e9;margin-bottom:4px;font-weight:bold">${discName}</div>
+      <div class="lr"><div class="ls" style="background:#555555"></div><span>Not Started (0%)</span></div>
+      <div class="lr">
+        <div class="ls" style="background:linear-gradient(to right,#c0392b,#d68910,#d4ac0d);border-radius:2px"></div>
+        <span>In Progress (1–99%)</span>
+      </div>
+      <div class="lr"><div class="ls" style="background:#1a8a4a"></div><span>Completed (100%)</span></div>`;
+  } else {
+    let rows = '<div style="font-size:9px;color:#85c1e9;margin-bottom:4px;font-weight:bold">STAGE</div>';
+    rows += '<div class="lr"><div class="ls" style="background:#555555"></div><span>Not started</span></div>';
+    for(const s of STAGES){
+      if(!s || !s.label || s.label === 'Not Started') continue;
+      rows += `<div class="lr"><div class="ls" style="background:${s.color}"></div><span>${s.label}</span></div>`;
+    }
+    el.innerHTML = rows;
   }
 }
 </script>
