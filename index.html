@@ -412,15 +412,13 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
   <!-- MAP PANEL -->
   <div class="panel active" id="panel-map">
     <div id="slicer-bar">
-      <div class="slicer-row">
+      <div class="slicer-row" id="nb-slicer-row">
         <span class="slicer-label">NB</span>
         <button class="sl-btn nb-btn active" onclick="filterNB(null)" id="nb-all">All</button>
-        <button class="sl-btn nb-btn" onclick="filterNB('NB1A')">NB1A</button><button class="sl-btn nb-btn" onclick="filterNB('NB1B')">NB1B</button><button class="sl-btn nb-btn" onclick="filterNB('NB1C')">NB1C</button><button class="sl-btn nb-btn" onclick="filterNB('NB2A')">NB2A</button><button class="sl-btn nb-btn" onclick="filterNB('NB2B')">NB2B</button><button class="sl-btn nb-btn" onclick="filterNB('NB2C')">NB2C</button><button class="sl-btn nb-btn" onclick="filterNB('NB2D')">NB2D</button><button class="sl-btn nb-btn" onclick="filterNB('NB2E')">NB2E</button>
       </div>
-      <div class="slicer-row">
+      <div class="slicer-row" id="disc-slicer-row">
         <span class="slicer-label">DISC</span>
         <button class="sl-btn active" onclick="filterDisc(null)" id="disc-all">All Stages</button>
-        <button class="sl-btn" onclick="filterDisc('Boundary Wall')" style="font-size:9px">Boundary Wall</button><button class="sl-btn" onclick="filterDisc('Superstructure BW')" style="font-size:9px">Superstructure BW</button><button class="sl-btn" onclick="filterDisc('Foundation PC')" style="font-size:9px">Foundation PC</button><button class="sl-btn" onclick="filterDisc('Foundation RC')" style="font-size:9px">Foundation RC</button><button class="sl-btn" onclick="filterDisc('Precast Fab')" style="font-size:9px">Precast Fab</button><button class="sl-btn" onclick="filterDisc('Precast GF')" style="font-size:9px">Precast GF</button><button class="sl-btn" onclick="filterDisc('Precast FF')" style="font-size:9px">Precast FF</button><button class="sl-btn" onclick="filterDisc('Precast RF')" style="font-size:9px">Precast RF</button><button class="sl-btn" onclick="filterDisc('Masonry')" style="font-size:9px">Masonry</button><button class="sl-btn" onclick="filterDisc('Roofing')" style="font-size:9px">Roofing</button><button class="sl-btn" onclick="filterDisc('Mech Ceiling')" style="font-size:9px">Mech Ceiling</button><button class="sl-btn" onclick="filterDisc('Mech Walls')" style="font-size:9px">Mech Walls</button><button class="sl-btn" onclick="filterDisc('Elec Ceiling')" style="font-size:9px">Elec Ceiling</button><button class="sl-btn" onclick="filterDisc('Elec Walls')" style="font-size:9px">Elec Walls</button><button class="sl-btn" onclick="filterDisc('Plaster')" style="font-size:9px">Plaster</button><button class="sl-btn" onclick="filterDisc('HVAC')" style="font-size:9px">HVAC</button><button class="sl-btn" onclick="filterDisc('Wires')" style="font-size:9px">Wires</button>
       </div>
     </div>
     <div id="filter-notice">Filtered view active</div>
@@ -2534,10 +2532,9 @@ let activeDisc = null;  // null = all stages
 // ── Filter by Neighborhood ───────────────────────────────────────
 function filterNB(nb){
   activeNB = nb;
-  // Update NB button states
   document.querySelectorAll('.nb-btn').forEach(b=>{
     b.classList.remove('active');
-    if((nb===null && b.id==='nb-all') || b.textContent===nb) b.classList.add('active');
+    if((nb===null && b.id==='nb-all') || b.textContent.trim()===nb) b.classList.add('active');
   });
   applyFilters();
 }
@@ -2545,11 +2542,10 @@ function filterNB(nb){
 // ── Filter by Discipline ─────────────────────────────────────────
 function filterDisc(disc){
   activeDisc = disc;
-  // Update disc button states
   document.querySelectorAll('.sl-btn:not(.nb-btn)').forEach(b=>{
     b.classList.remove('active');
     if(disc===null && b.id==='disc-all') b.classList.add('active');
-    else if(disc && b.getAttribute('onclick') && b.getAttribute('onclick').includes("'"+disc+"'")) b.classList.add('active');
+    else if(disc && b.textContent.trim()===disc) b.classList.add('active');
   });
   applyFilters();
 }
@@ -2715,6 +2711,7 @@ const _origBuildMap = buildMap;
 buildMap = function(){
   _origBuildMap();
   setTimeout(()=>{
+    buildSlicers();
     adjustMapHeight();
     applyFilters();
     updateLegend();
@@ -2899,6 +2896,37 @@ function applyDynamicSchema(schema){
   }
 
   console.log('Dynamic schema applied:', newDiscs.length, 'disciplines');
+  buildSlicers();
+}
+
+// ── Build slicers dynamically from DISCS + live data ────────────────
+function buildSlicers(){
+  // Disc slicer — from DISCS array
+  const discRow = document.getElementById('disc-slicer-row');
+  // Remove all except first button (All Stages)
+  while(discRow.children.length > 2) discRow.removeChild(discRow.lastChild);
+  // Add a button for each discipline
+  for(const d of DISCS){
+    const btn = document.createElement('button');
+    btn.className = 'sl-btn';
+    btn.style.fontSize = '9px';
+    btn.textContent = d;
+    btn.setAttribute('onclick', `filterDisc('${d}')`);
+    discRow.appendChild(btn);
+  }
+
+  // NB slicer — from live data
+  const nbRow = document.getElementById('nb-slicer-row');
+  while(nbRow.children.length > 2) nbRow.removeChild(nbRow.lastChild);
+  // Get unique NBs from live data
+  const nbs = [...new Set(Object.values(live).map(v=>v.nb).filter(Boolean))].sort();
+  for(const nb of nbs){
+    const btn = document.createElement('button');
+    btn.className = 'sl-btn nb-btn';
+    btn.textContent = nb;
+    btn.setAttribute('onclick', `filterNB('${nb}')`);
+    nbRow.appendChild(btn);
+  }
 }
 </script>
 </body>
