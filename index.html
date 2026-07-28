@@ -2550,7 +2550,7 @@ function filterDisc(disc){
   document.querySelectorAll('.sl-btn:not(.nb-btn)').forEach(b=>{
     b.classList.remove('active');
     if(disc===null && b.id==='disc-all') b.classList.add('active');
-    else if(disc && b.textContent.trim()===disc) b.classList.add('active');
+    else if(disc && (b.dataset.disc===disc || b.textContent.trim()===disc)) b.classList.add('active');
   });
   applyFilters();
 }
@@ -2877,15 +2877,22 @@ function showToast(msg, isError){
 function applyDynamicSchema(schema){
   if(!schema || !schema.disciplines) return;
 
-  // Get new discipline list from schema
-  const newDiscs = Object.keys(schema.disciplines);
+  // Filter to only KNOWN disciplines — ignore date/ID columns
+  // A valid discipline name should NOT contain these keywords
+  const skipKeywords = ['start','finish','actual','planned','activity id','(a)','date'];
+  const newDiscs = Object.keys(schema.disciplines).filter(d => {
+    const dl = d.toLowerCase();
+    return !skipKeywords.some(k => dl.includes(k));
+  });
+
   if(newDiscs.length === 0) return;
 
-  // Update DISCS array dynamically
-  DISCS.length = 0;
-  newDiscs.forEach(d => DISCS.push(d));
+  // Only add disciplines NOT already in DISCS
+  for(const d of newDiscs){
+    if(!DISCS.includes(d)) DISCS.push(d);
+  }
 
-  // Update VILLA_DATES with planned dates from schema
+  // Update VILLA_DATES with dates from schema
   for(const [vid, v] of Object.entries(live)){
     if(v.dates){
       if(!VILLA_DATES[vid]) VILLA_DATES[vid] = {};
@@ -2893,43 +2900,47 @@ function applyDynamicSchema(schema){
     }
   }
 
-  // Update FULL_NAMES with any new disciplines
+  // Update name maps for any new disciplines
   for(const disc of newDiscs){
     if(!FULL_NAMES[disc]) FULL_NAMES[disc] = disc;
     if(!FULL_NAMES_AR[disc]) FULL_NAMES_AR[disc] = disc;
     if(!DISC_AR[disc]) DISC_AR[disc] = disc;
   }
 
-  console.log('Dynamic schema applied:', newDiscs.length, 'disciplines');
+  console.log('Dynamic schema applied:', newDiscs.length, 'valid disciplines');
   buildSlicers();
 }
 
 // ── Build slicers dynamically from DISCS + live data ────────────────
 function buildSlicers(){
-  // Disc slicer — from DISCS array
+  // Disc slicer — from DISCS array (use short names, max 14 chars)
   const discRow = document.getElementById('disc-slicer-row');
-  // Remove all except first button (All Stages)
   while(discRow.children.length > 2) discRow.removeChild(discRow.lastChild);
-  // Add a button for each discipline
   for(const d of DISCS){
+    // Skip date/ID columns that may have slipped through
+    const dl = d.toLowerCase();
+    if(['start','finish','actual','planned','activity id','(a)'].some(k=>dl.includes(k))) continue;
     const btn = document.createElement('button');
     btn.className = 'sl-btn';
     btn.style.fontSize = '9px';
-    btn.textContent = d;
-    btn.setAttribute('onclick', `filterDisc('${d}')`);
+    // Show short name (max 14 chars) but store full name in data attribute
+    const shortName = d.length > 14 ? d.substring(0,13)+'…' : d;
+    btn.textContent = shortName;
+    btn.title = d; // full name on hover
+    btn.dataset.disc = d;
+    btn.onclick = () => filterDisc(d);
     discRow.appendChild(btn);
   }
 
   // NB slicer — from live data
   const nbRow = document.getElementById('nb-slicer-row');
   while(nbRow.children.length > 2) nbRow.removeChild(nbRow.lastChild);
-  // Get unique NBs from live data
   const nbs = [...new Set(Object.values(live).map(v=>v.nb).filter(Boolean))].sort();
   for(const nb of nbs){
     const btn = document.createElement('button');
     btn.className = 'sl-btn nb-btn';
     btn.textContent = nb;
-    btn.setAttribute('onclick', `filterNB('${nb}')`);
+    btn.onclick = () => filterNB(nb);
     nbRow.appendChild(btn);
   }
 }
