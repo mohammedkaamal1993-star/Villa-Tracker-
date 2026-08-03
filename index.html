@@ -268,6 +268,20 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
 .sub-act-input:focus{outline:none;border-color:#85c1e9}
 .sub-act-plab{color:#7f8c8d;font-size:11px;width:12px}
 .parent-calc{font-size:9px;color:#7f8c8d;margin-top:3px;font-style:italic}
+
+/* PREVENT PULL-TO-REFRESH ON MOBILE */
+html, body {
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+}
+/* Edit overlay scrolling fix */
+#eov {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+#ebox {
+  overscroll-behavior: contain;
+}
 </style>
 </head>
 <body>
@@ -1563,7 +1577,7 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
 </div><!-- app -->
 
 <!-- EDIT OVERLAY -->
-<div id="eov">
+<div id="eov" ontouchmove="event.stopPropagation()">
   <div id="ebox">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
       <div>
@@ -2245,7 +2259,11 @@ async function openEdit(pid){
   document.getElementById('save-btn').disabled=false;
   document.getElementById('save-btn').textContent='☁ Save to Sheet';
   document.getElementById('eov').style.display='block';
+  // Prevent pull-to-refresh and body scroll on mobile
   document.body.style.overflow='hidden';
+  document.body.style.position='fixed';
+  document.body.style.width='100%';
+  document.documentElement.style.overscrollBehavior='none';
 }
 function setBadge(p){
   const b=document.getElementById('ebadge');
@@ -2557,7 +2575,12 @@ async function flushQueue(){
 setTimeout(()=>{ if(apiUrl) flushQueue(); }, 3000);
 function closeEdit(){
   document.getElementById('eov').style.display='none';
-  document.body.style.overflow='';editId=null;
+  // Restore body scroll
+  document.body.style.overflow='';
+  document.body.style.position='';
+  document.body.style.width='';
+  document.documentElement.style.overscrollBehavior='';
+  editId=null;
 }
 
 // ── Report ────────────────────────────────────────────────────
