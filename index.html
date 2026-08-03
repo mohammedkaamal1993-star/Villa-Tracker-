@@ -2246,12 +2246,25 @@ async function openEdit(pid){
   // Fetch latest sub-activities from sheet into localStorage
   await fetchSubActivities(v.num);
 
-  // Pre-calculate parent % from sub-activities
-  for(const disc of Object.keys(SUB_ACTIVITIES)){
-    const pct = calcParentFromSubs(v.num, disc);
-    if(pct !== null) v.progress[disc] = pct;
+  // Only override parent % from sub-activities if sub-data actually exists
+  // — if no sub-data, keep the real sheet value
+  const subData = loadSubActivities(v.num);
+  const hasSubData = Object.keys(subData).length > 0;
+
+  if(hasSubData){
+    for(const disc of Object.keys(SUB_ACTIVITIES)){
+      const subs = SUB_ACTIVITIES[disc];
+      // Check if ANY sub-activity for this disc has been entered
+      const discHasData = subs.some(s => subData[s.id] !== undefined);
+      if(discHasData){
+        const pct = calcParentFromSubs(v.num, disc);
+        if(pct !== null) v.progress[disc] = pct;
+      }
+      // If no sub-data for this disc → keep sheet value as-is
+    }
+    v.overall = avg(v.progress);
   }
-  v.overall = avg(v.progress);
+
   document.getElementById('etitle').textContent=`Villa ${v.num} – ${v.type}`;
   document.getElementById('esub').textContent=`${v.phase} | ${v.nb} | Block ${v.block}`;
   setBadge(v.overall);buildEditDiscs(v);
@@ -3181,6 +3194,9 @@ function calcParentFromSubs(villaNum, disc){
   const subs = SUB_ACTIVITIES[disc];
   if(!subs || !subs.length) return null;
   const data = loadSubActivities(villaNum);
+  // Only calculate if at least one sub-activity has been entered
+  const hasAny = subs.some(s => data[s.id] !== undefined && data[s.id] !== null);
+  if(!hasAny) return null; // Return null = don't override sheet value
   const vals = subs.map(s => parseInt(data[s.id]||0));
   return Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
 }
