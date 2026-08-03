@@ -2254,8 +2254,8 @@ async function openEdit(pid){
   if(hasSubData){
     for(const disc of Object.keys(SUB_ACTIVITIES)){
       const subs = SUB_ACTIVITIES[disc];
-      // Check if ANY sub-activity for this disc has been entered
-      const discHasData = subs.some(s => subData[s.id] !== undefined);
+      // Only override if ALL sub-activities for this disc have been entered
+      const discHasData = subs.every(s => subData[s.id] !== undefined && subData[s.id] !== null);
       if(discHasData){
         const pct = calcParentFromSubs(v.num, disc);
         if(pct !== null) v.progress[disc] = pct;
@@ -3194,9 +3194,10 @@ function calcParentFromSubs(villaNum, disc){
   const subs = SUB_ACTIVITIES[disc];
   if(!subs || !subs.length) return null;
   const data = loadSubActivities(villaNum);
-  // Only calculate if at least one sub-activity has been entered
-  const hasAny = subs.some(s => data[s.id] !== undefined && data[s.id] !== null);
-  if(!hasAny) return null; // Return null = don't override sheet value
+  // Only calculate if ALL sub-activities have been entered
+  // If any is missing, don't override the sheet value
+  const allEntered = subs.every(s => data[s.id] !== undefined && data[s.id] !== null);
+  if(!allEntered) return null; // Return null = keep real sheet value
   const vals = subs.map(s => parseInt(data[s.id]||0));
   return Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
 }
