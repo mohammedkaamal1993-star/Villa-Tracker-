@@ -252,6 +252,22 @@ body{background:#0f1923;color:#fff;height:100vh;overflow:hidden;display:flex;fle
   touch-action:manipulation;text-align:center;transition:all 0.15s}
 .dsw-btn.active{border-color:#85c1e9;background:#1a3a5a;color:#85c1e9;font-weight:bold}
 #donut-change{font-size:8px;text-align:center;margin-top:2px;min-height:10px}
+
+/* SUB-ACTIVITIES */
+.sub-acts{margin-top:6px;padding:6px 8px;background:#0f1923;border-radius:7px;
+  border-left:2px solid #1a5276}
+.sub-act-title{font-size:9px;color:#85c1e9;font-weight:bold;margin-bottom:5px;
+  text-transform:uppercase;letter-spacing:0.5px}
+.sub-act-row{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.sub-act-label{flex:1;font-size:11px;color:#aaa}
+.sub-act-bar{width:40px;height:3px;background:#253545;border-radius:2px;overflow:hidden;flex-shrink:0}
+.sub-act-bar-fill{height:100%;border-radius:2px;transition:width .2s}
+.sub-act-input{width:50px;padding:4px 5px;background:#253545;border:1px solid #1a5276;
+  border-radius:5px;color:#fff;font-size:12px;font-weight:bold;text-align:center;
+  -webkit-appearance:none}
+.sub-act-input:focus{outline:none;border-color:#85c1e9}
+.sub-act-plab{color:#7f8c8d;font-size:11px;width:12px}
+.parent-calc{font-size:9px;color:#7f8c8d;margin-top:3px;font-style:italic}
 </style>
 </head>
 <body>
@@ -2208,10 +2224,20 @@ function searchVilla(id){
 function openEditSearched(){if(searchedId)openEdit(searchedId);}
 
 // ── Edit ──────────────────────────────────────────────────────
-function openEdit(pid){
+async function openEdit(pid){
   document.getElementById('tip').style.display='none';
   editId=String(pid);
-  const v=live[editId];if(!v)return;
+  const v=live[editId]; if(!v) return;
+
+  // Fetch latest sub-activities from sheet into localStorage
+  await fetchSubActivities(v.num);
+
+  // Pre-calculate parent % from sub-activities
+  for(const disc of Object.keys(SUB_ACTIVITIES)){
+    const pct = calcParentFromSubs(v.num, disc);
+    if(pct !== null) v.progress[disc] = pct;
+  }
+  v.overall = avg(v.progress);
   document.getElementById('etitle').textContent=`Villa ${v.num} – ${v.type}`;
   document.getElementById('esub').textContent=`${v.phase} | ${v.nb} | Block ${v.block}`;
   setBadge(v.overall);buildEditDiscs(v);
@@ -2227,7 +2253,8 @@ function setBadge(p){
 }
 function buildEditDiscs(v){
   const c = document.getElementById('ediscs');
-  const dates = VILLA_DATES[String(v.num)] || {};
+  const dates   = VILLA_DATES[String(v.num)] || {};
+  const subData = loadSubActivities(v.num);
 
   let rows = '';
   for(const d of DISCS){
@@ -2239,17 +2266,51 @@ function buildEditDiscs(v){
     const planned  = dates[FULL_NAMES[d]] || '—';
     const steps    = LEGEND_GUIDE[d] || [];
     const hasDates = !DATE_COLS_MAP[d] || DATE_COLS_MAP[d].start !== null;
+    const subs     = SUB_ACTIVITIES[d] || [];
+    const hasSubs  = subs.length > 0;
 
-    // Actual start/finish from sheet
+    // Actual start/finish
     const actualStart  = dates[d+'_start']  || '';
     const actualFinish = dates[d+'_finish'] || '';
 
-    // Stage buttons
+    // Stage buttons (only if no sub-activities)
     let stageBtns = '';
-    for(const s of steps){
-      const cls = p===s.pct?'stage-btn active':(p>s.pct?'stage-btn done':'stage-btn');
-      const lbl = lang==='ar'?s.ar:s.en;
-      stageBtns += `<button class="${cls}" onclick="setStage('${uid}','${d}',${s.pct})" title="${lbl}">${s.pct}%</button>`;
+    if(!hasSubs){
+      for(const s of steps){
+        const cls = p===s.pct?'stage-btn active':(p>s.pct?'stage-btn done':'stage-btn');
+        const lbl = lang==='ar'?s.ar:s.en;
+        stageBtns += `<button class="${cls}" onclick="setStage('${uid}','${d}',${s.pct})" title="${lbl}">${s.pct}%</button>`;
+      }
+    }
+
+    // Sub-activities section
+    let subSection = '';
+    if(hasSubs){
+      let subRows = '';
+      for(const s of subs){
+        const sv  = parseInt(subData[s.id]||0);
+        const sc  = col(sv);
+        const lbl = lang==='ar' ? s.ar : s.label;
+        subRows += `
+          <div class="sub-act-row">
+            <div class="sub-act-label">${lbl}</div>
+            <div class="sub-act-bar"><div class="sub-act-bar-fill" id="sb-${s.id}" style="width:${sv}%;background:${sc}"></div></div>
+            <input class="sub-act-input" type="number" min="0" max="100" step="1"
+              value="${sv}" id="si-${s.id}"
+              data-disc="${d}" data-subid="${s.id}" data-villa="${v.num}"
+              oninput="onSubInp(this)"/>
+            <span class="sub-act-plab">%</span>
+          </div>`;
+      }
+      const calcPct = calcParentFromSubs(v.num, d);
+      subSection = `
+        <div class="sub-acts">
+          <div class="sub-act-title">📐 ${lang==='ar'?'الأنشطة الفرعية':'Sub-Activities'}</div>
+          ${subRows}
+          <div class="parent-calc" id="pc-${uid}">
+            ${lang==='ar'?'المتوسط':'Avg'}: ${calcPct}% → ${lang==='ar'?'يحدّث التخصص الرئيسي':'updates parent'}
+          </div>
+        </div>`;
     }
 
     // Date inputs
@@ -2275,7 +2336,8 @@ function buildEditDiscs(v){
         <div class="exc-full">${fullName}</div>
         <div class="exc-alt">${fullAlt}</div>
         <div class="exc-date">📋 ${lang==='ar'?'مخطط':'Planned'}: ${planned}</div>
-        <div class="stage-btns" id="stg-${uid}">${stageBtns}</div>
+        ${hasSubs ? '' : `<div class="stage-btns" id="stg-${uid}">${stageBtns}</div>`}
+        ${subSection}
         ${dateInputs}
       </div>
       <div class="exc-right">
@@ -2284,7 +2346,8 @@ function buildEditDiscs(v){
         </div>
         <div class="exc-input-row">
           <input class="dei" id="inp-${uid}" type="number" min="0" max="100" step="1"
-            value="${p}" data-disc="${d}" oninput="onInp(this)"/>
+            value="${p}" data-disc="${d}" oninput="onInp(this)"
+            ${hasSubs ? 'readonly style="background:#253545;color:#85c1e9;cursor:not-allowed"' : ''}/>
           <span class="plab">%</span>
         </div>
       </div>
@@ -2423,6 +2486,30 @@ async function saveEdit(){
       sync('ok');
       showToast('✅ Villa ' + v.num + ' synced to Google Sheet', false);
       flushQueue();
+
+      // Save sub-activities to sheet
+      const subData = loadSubActivities(v.num);
+      if(Object.keys(subData).length > 0 && apiUrl){
+        const grouped = {};
+        for(const [disc, subs] of Object.entries(SUB_ACTIVITIES)){
+          grouped[disc] = {};
+          for(const s of subs){
+            grouped[disc][s.id] = subData[s.id] || 0;
+          }
+        }
+        fetch(apiUrl, {
+          method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body: JSON.stringify({
+            action:'writeSubs',
+            villaNum: v.num,
+            subs: grouped,
+            user: currentUser||'Unknown'
+          })
+        }).then(r=>r.json())
+          .then(d=>{ if(d.ok) console.log('Sub-activities saved:', d.rows, 'rows'); })
+          .catch(e=>console.warn('writeSubs failed:',e));
+      }
 
     } catch(e){
       sync('err');
@@ -2989,6 +3076,132 @@ function updateDonut(done, total){
   if(ttl) ttl.textContent = activeDisc ? activeDisc.substring(0,10) : (activeNB || 'Overall');
   if(sub) sub.textContent = activeDisc ? '100% done' : 'villas';
   if(chg) chg.textContent = '';
+}
+
+// ── Sub-activities definition ────────────────────────────────────
+const SUB_ACTIVITIES = {
+  'Mech Ceiling': [
+    {id:'mech_ceil_gf_plumb',  label:'GF — Plumbing',  ar:'الدور الأرضي — سباكة'},
+    {id:'mech_ceil_ff_plumb',  label:'FF — Plumbing',  ar:'الدور الأول — سباكة'},
+    {id:'mech_ceil_ff_drain',  label:'FF — Drainage',  ar:'الدور الأول — صرف'},
+    {id:'mech_ceil_rf_plumb',  label:'RF — Plumbing',  ar:'السقف — سباكة'},
+    {id:'mech_ceil_rf_drain',  label:'RF — Drainage',  ar:'السقف — صرف'},
+  ],
+  'Mech Walls': [
+    {id:'mech_wall_gf_plumb',  label:'GF — Plumbing',  ar:'الدور الأرضي — سباكة'},
+    {id:'mech_wall_ff_plumb',  label:'FF — Plumbing',  ar:'الدور الأول — سباكة'},
+    {id:'mech_wall_ff_drain',  label:'FF — Drainage',  ar:'الدور الأول — صرف'},
+    {id:'mech_wall_rf_plumb',  label:'RF — Plumbing',  ar:'السقف — سباكة'},
+    {id:'mech_wall_rf_drain',  label:'RF — Drainage',  ar:'السقف — صرف'},
+  ],
+  'Masonry': [
+    {id:'masonry_gf', label:'GF — Masonry', ar:'الدور الأرضي — بناء'},
+    {id:'masonry_ff', label:'FF — Masonry', ar:'الدور الأول — بناء'},
+    {id:'masonry_rf', label:'RF — Masonry', ar:'السقف — بناء'},
+  ],
+  'Plaster': [
+    {id:'plaster_gf', label:'GF — Plaster', ar:'الدور الأرضي — لياسة'},
+    {id:'plaster_ff', label:'FF — Plaster', ar:'الدور الأول — لياسة'},
+    {id:'plaster_rf', label:'RF — Plaster', ar:'السقف — لياسة'},
+  ],
+  'Elec Ceiling': [
+    {id:'elec_ceil_gf', label:'GF — Elec Ceiling', ar:'الدور الأرضي — كهرباء سقف'},
+    {id:'elec_ceil_ff', label:'FF — Elec Ceiling', ar:'الدور الأول — كهرباء سقف'},
+    {id:'elec_ceil_rf', label:'RF — Elec Ceiling', ar:'السقف — كهرباء سقف'},
+  ],
+  'Elec Walls': [
+    {id:'elec_wall_gf', label:'GF — Elec Walls', ar:'الدور الأرضي — كهرباء جدار'},
+    {id:'elec_wall_ff', label:'FF — Elec Walls', ar:'الدور الأول — كهرباء جدار'},
+    {id:'elec_wall_rf', label:'RF — Elec Walls', ar:'السقف — كهرباء جدار'},
+  ],
+};
+
+// ── Sub-activity storage (localStorage per villa) ─────────────────
+function getSubKey(villaNum){ return 'sub_'+villaNum; }
+
+function loadSubActivities(villaNum){
+  try{
+    const raw = localStorage.getItem(getSubKey(villaNum));
+    return raw ? JSON.parse(raw) : {};
+  }catch(e){ return {}; }
+}
+
+function saveSubActivities(villaNum, data){
+  try{
+    localStorage.setItem(getSubKey(villaNum), JSON.stringify(data));
+  }catch(e){}
+}
+
+// Load sub-activities from Google Sheet into localStorage
+async function fetchSubActivities(villaNum){
+  if(!apiUrl) return;
+  try{
+    const r = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({action:'readSubs', villaNum})
+    });
+    const d = await r.json();
+    if(d.error || !Object.keys(d).length) return;
+    // Convert nested {disc:{subId:pct}} to flat {subId:pct}
+    const flat = {};
+    for(const [disc, subMap] of Object.entries(d)){
+      for(const [subId, pct] of Object.entries(subMap)){
+        flat[subId] = pct;
+      }
+    }
+    saveSubActivities(villaNum, flat);
+  }catch(e){ console.warn('fetchSubActivities failed:', e); }
+}
+
+function calcParentFromSubs(villaNum, disc){
+  const subs = SUB_ACTIVITIES[disc];
+  if(!subs || !subs.length) return null;
+  const data = loadSubActivities(villaNum);
+  const vals = subs.map(s => parseInt(data[s.id]||0));
+  return Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
+}
+
+// ── Sub-activity input handler ────────────────────────────────────
+function onSubInp(inp){
+  const disc   = inp.dataset.disc;
+  const subId  = inp.dataset.subid;
+  const villaNum = inp.dataset.villa;
+  const val    = Math.max(0, Math.min(100, parseInt(inp.value)||0));
+
+  // Save to localStorage
+  const data = loadSubActivities(villaNum);
+  data[subId] = val;
+  saveSubActivities(villaNum, data);
+
+  // Update sub bar
+  const bar = document.getElementById('sb-'+subId);
+  if(bar){ bar.style.width=val+'%'; bar.style.background=col(val); }
+
+  // Recalculate parent %
+  const parentPct = calcParentFromSubs(villaNum, disc);
+  const uid = disc.replace(/ /g,'_');
+
+  // Update parent input
+  const parentInp = document.getElementById('inp-'+uid);
+  if(parentInp) parentInp.value = parentPct;
+
+  // Update parent bar
+  const parentBar = document.getElementById('bm-'+uid);
+  if(parentBar){ parentBar.style.width=parentPct+'%'; parentBar.style.background=col(parentPct); }
+
+  // Update parent calc label
+  const pcEl = document.getElementById('pc-'+uid);
+  if(pcEl) pcEl.textContent = (lang==='ar'?'المتوسط':'Avg')+': '+parentPct+'% → '+(lang==='ar'?'يحدّث التخصص الرئيسي':'updates parent');
+
+  // Update live data
+  const v = live[String(villaNum)];
+  if(v){
+    v.progress[disc] = parentPct;
+    v.overall = avg(v.progress);
+    setBadge(v.overall);
+    updateOnePoly(String(villaNum));
+  }
 }
 </script>
 </body>
